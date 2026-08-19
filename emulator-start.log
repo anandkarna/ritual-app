@@ -1,0 +1,426 @@
+INFO         | Android emulator version 36.4.9.0 (build_id 14788078) (CL:N/A)
+INFO         | Graphics backend: gfxstream
+DEBUG   | Current emulator version 36.4.9 is the same as the required version 36.4.9.
+INFO         | Found AVD name 'Medium_Phone_API_36.1'
+INFO         | Found AVD target architecture: x86_64
+INFO         | argv[0]: 'C:\Users\bhang\AppData\Local\Android\Sdk\emulator\emulator.exe'; program directory: 'C:\Users\bhang\AppData\Local\Android\Sdk\emulator'
+INFO         | Found systemPath C:\Users\bhang\AppData\Local\Android\Sdk\system-images\android-36.1\google_apis_playstore\x86_64\
+DEBUG   | autoconfig: -skin 1080x2400
+DEBUG   | autoconfig: -skindir (null)
+DEBUG   | init, loading C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib\advancedFeatures.ini
+WARNING      | Please update the emulator to one that supports the feature(s): VulkanVirtualQueue
+DEBUG   | autoconfig: -kernel C:\Users\bhang\AppData\Local\Android\Sdk\system-images\android-36.1\google_apis_playstore\x86_64\\kernel-ranchu
+DEBUG   | Target arch = 'x86_64'
+DEBUG   | Auto-detect: Kernel image requires new device naming scheme.
+DEBUG   | Auto-detect: Kernel does not support YAFFS2 partitions.
+DEBUG   | autoconfig: -ramdisk C:\Users\bhang\AppData\Local\Android\Sdk\system-images\android-36.1\google_apis_playstore\x86_64\\ramdisk.img
+DEBUG   | Using initial system image: C:\Users\bhang\AppData\Local\Android\Sdk\system-images\android-36.1\google_apis_playstore\x86_64\\system.img
+DEBUG   | Using initial vendor image: C:\Users\bhang\AppData\Local\Android\Sdk\system-images\android-36.1\google_apis_playstore\x86_64\\vendor.img
+DEBUG   | autoconfig: -data C:\Users\bhang\.android\avd\..\avd\Medium_Phone.avd\userdata-qemu.img
+DEBUG   | autoconfig: -initdata (null)
+DEBUG   | autoconfig: -cache C:\Users\bhang\.android\avd\..\avd\Medium_Phone.avd\cache.img
+DEBUG   | autoconfig: -sdcard C:\Users\bhang\.android\avd\..\avd\Medium_Phone.avd\sdcard.img
+DEBUG   | Physical RAM size: 2048MB
+DEBUG   | VM heap size 336MB is below hardware specified minimum of 512MB,setting it to that value
+DEBUG   | System image is read only
+INFO         | IPv4 server found: 192.168.1.1
+INFO         | Ignore IPv6 address: 60b8:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: 60b8:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: 60b8:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: 78be:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: 78be:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: 78be:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: d0c4:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: d0c4:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: a8cf:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: a8cf:2779:e401:0:c0b2:2779:e401:0
+INFO         | Ignore IPv6 address: a8cf:2779:e401:0:c0b2:2779:e401:0
+DEBUG   | Found 1 DNS servers:
+DEBUG   | 	192.168.1.1
+INFO         | Guest GLES Driver: Auto (ext controls)
+DEBUG   | emuglConfig_init: gpu_mode_requested: auto, no_window: 0
+
+INFO         | emuglConfig_init: vulkan_mode_selected:host gles_mode_selected:host
+DEBUG   | setCurrentRenderer: host host gles:Host vulkan:Host
+DEBUG   | emuglConfig_get_vulkan_runtime_full_path: Checking for vulkan-1.dll versions
+DEBUG   | querying file version info API...
+DEBUG   | found kernelbase.dll
+DEBUG   | GetFileVersionInfoSizeW found. On Windows 10?
+DEBUG   | GetFileVersionInfoW found. On Windows 10?
+DEBUG   | VerQueryValueW found. Can query file versions
+DEBUG   | querying file version info API...
+DEBUG   | vulkan-1.dll version: 1.3.277.0
+DEBUG   | C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll version: 1.4.328.0
+DEBUG   | emuglConfig_get_vulkan_runtime_full_path: Using vulkan runtime path: vulkan-1.dll
+DEBUG   | emuglConfig_get_vulkan_hardware_gpu_support_info: Successfully created vulkan instance
+
+DEBUG   | emuglConfig_get_vulkan_hardware_gpu_support_info: Physical devices count is 1
+
+INFO         | emuglConfig_get_vulkan_hardware_gpu_support_info: Found physical GPU 'Intel(R) UHD Graphics 630', type: VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, apiVersion: 1.2.151, driverVersion: 0.402.537
+
+DEBUG   | emuglConfig_init: GPU emulation enabled using Vulkan:'host' GLES:'host' modes
+
+DEBUG   | GPU emulation enabled using Vulkan:'host' GLES:'host' modes
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasCompatibleHypervisor
+INFO         |      Ok: Hypervisor compatibility to run avd: `Medium_Phone_API_36.1` are met
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `Medium_Phone_API_36.1` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `Medium_Phone_API_36.1` are passed
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `Medium_Phone_API_36.1` are met
+DEBUG   | Starting hostapd main loop.
+DEBUG   | found magic skin width=1080 height=2400 bpp=16
+
+WARNING      | Failed to process .ini file C:\Users\bhang\.android\avd\..\avd\Medium_Phone.avd\quickbootChoice.ini for reading.
+DEBUG   | CPU Acceleration: working
+DEBUG   | CPU Acceleration status: AEHD (version 2.2) is installed and usable.
+DEBUG   | handleCpuAcceleration: feature check for hvf
+DEBUG   | Uwb feature is enabled
+DEBUG   | Bluetooth requested by guest
+DEBUG   | started modem simulator host server at port: 52554
+INFO         | Critical: Failed to load opengl32sw (The specified module could not be found.) (:0, )
+INFO         | Warning: Software OpenGL failed. Falling back to system OpenGL. (:0, )
+INFO         | Storing crashdata in: C:\Users\bhang\AppData\Local\Temp\\AndroidEmulator\emu-crash-36.4.9.db, detection is enabled for process: 22348
+INFO         | Initializing gfxstream backend
+INFO         | android_startOpenglesRenderer: gpu info
+INFO         | GPU #1
+  Make: 10de
+  Model: NVIDIA GeForce GTX 1050
+  Device ID: 1c91
+
+DEBUG   | gfxstreamFeature:GlPipeChecksum = 1
+DEBUG   | gfxstreamFeature:Vulkan = 1
+DEBUG   | gfxstreamFeature:HasSharedSlotsHostMemoryAllocator = 1
+DEBUG   | gfxstreamFeature:VulkanSnapshots = 0
+DEBUG   | gfxstreamFeature:NoDelayCloseColorBuffer = 0
+DEBUG   | gfxstreamFeature:VirtioGpuNativeSync = 0
+DEBUG   | gfxstreamFeature:VulkanShaderFloat16Int8 = 1
+DEBUG   | gfxstreamFeature:NativeTextureDecompression = 0
+DEBUG   | gfxstreamFeature:VulkanNativeSwapchain = 0
+DEBUG   | gfxstreamFeature:VirtioGpuFenceContexts = 0
+DEBUG   | gfxstreamFeature:AsyncComposeSupport = 0
+DEBUG   | gfxstreamFeature:ExternalBlob = 0
+DEBUG   | gfxstreamFeature:SystemBlob = 0
+DEBUG   | gfxstreamFeature:GrallocSync = 0
+DEBUG   | gfxstreamFeature:GlAsyncSwap = 1
+DEBUG   | gfxstreamFeature:GlDma = 1
+DEBUG   | gfxstreamFeature:GlDma2 = 0
+DEBUG   | gfxstreamFeature:GlDirectMem = 1
+DEBUG   | gfxstreamFeature:GlesDynamicVersion = 1
+DEBUG   | gfxstreamFeature:RefCountPipe = 1
+DEBUG   | gfxstreamFeature:HostComposition = 1
+DEBUG   | gfxstreamFeature:VulkanNullOptionalStrings = 1
+DEBUG   | gfxstreamFeature:Yuv420888ToNv21 = 0
+DEBUG   | gfxstreamFeature:YuvCache = 1
+DEBUG   | gfxstreamFeature:VulkanIgnoredHandles = 1
+DEBUG   | gfxstreamFeature:VirtioGpuNext = 0
+DEBUG   | gfxstreamFeature:VulkanQueueSubmitWithCommands = 1
+DEBUG   | gfxstreamFeature:VulkanBatchedDescriptorSetUpdate = 0
+DEBUG   | gfxstreamFeature:Minigbm = 0
+DEBUG   | gfxstreamFeature:HwcMultiConfigs = 1
+DEBUG   | gfxstreamFeature:VulkanAllocateDeviceMemoryOnly = 0
+DEBUG   | gfxstreamFeature:VulkanAllocateHostMemory = 0
+DEBUG   | gfxstreamFeature:GuestVulkanOnly = 0
+DEBUG   | gfxstreamFeature:BypassVulkanDeviceFeatureOverrides = 0
+DEBUG   | gfxstreamFeature:VulkanDebugUtils = 0
+DEBUG   | gfxstreamFeature:VulkanCommandBufferCheckpoints = 0
+DEBUG   | gfxstreamFeature:VulkanVirtualQueue = 1
+DEBUG   | gfxstreamFeature:VulkanRobustness = 0
+DEBUG   | RenderWindow: CMD_INITIALIZE w=1080 h=2400
+DEBUG   | FrameBuffer::initialize()
+DEBUG   | FrameBuffer::Impl::initialize
+DEBUG   | create display 0
+DEBUG   | setDisplayPose 0 x 0 y 0 w 1080 h 2400 dpi 0
+VERBOSE | Enabling error messages from vulkan loader
+INFO         | SharedLibrary::open for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\lib64\vulkan\vulkan-1.dll]
+VERBOSE | SharedLibrary::open for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\lib64\vulkan\vulkan-1.dll]: not found in map, open for the first time
+VERBOSE | SharedLibrary::open for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\lib64\vulkan\vulkan-1.dll] (win32): call LoadLibrary
+VERBOSE | Failed to load [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\lib64\vulkan\vulkan-1.dll]. Error string: []
+DEBUG   | Library cannot be added: C:\Users\bhang\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\lib64\vulkan\vulkan-1.dll
+INFO         | SharedLibrary::open for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll]
+VERBOSE | SharedLibrary::open for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll]: not found in map, open for the first time
+VERBOSE | SharedLibrary::open for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll] (win32): call LoadLibrary
+VERBOSE | SharedLibrary::open succeeded for [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll]. File name: [C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll]
+INFO         | Added library: C:\Users\bhang\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll
+DEBUG   | Global loader has instance version = 1.4.328
+DEBUG   | global loader has vkEnumerateInstanceVersion returning >= 1.1.
+DEBUG   | Creating an instance, asking for version 1.1.0 ...
+DEBUG   | Found 1 Vulkan physical device(s).
+DEBUG   | Considering Vulkan physical device 0 : Intel(R) UHD Graphics 630
+DEBUG   | VK_EXT_external_memory_dma_buf not found, bailing.
+DEBUG   | VK_KHR_sampler_ycbcr_conversion not found, bailing.
+DEBUG   | VK_EXT_private_data not found, bailing.
+DEBUG   | VK_EXT_robustness2 not found, bailing.
+DEBUG   | Graphics queue family index: 0
+DEBUG   | Compute queue family index: 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8G8B8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R5G6B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A1R5G5B5_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16A16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16G16B16_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B8G8R8A8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_B4G4R4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R4G4B4A4_UNORM_PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R8_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_R16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_A2R10G10B10_UINT_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2R10G10B10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_A2B10G10R10_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_ASTC_4x4_UNORM_BLOCK VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8R8_2PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_LINEAR VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+DEBUG   | Not Supported: VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT
+DEBUG   | Supported: VK_FORMAT_D16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D16_UNORM VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_X8_D24_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_X8_D24_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_X8_D24_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_X8_D24_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_X8_D24_UNORM_PACK32 VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D24_UNORM_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D24_UNORM_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D24_UNORM_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D24_UNORM_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D24_UNORM_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_SAMPLED_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_SRC_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+DEBUG   | Supported: VK_FORMAT_D32_SFLOAT_S8_UINT VK_IMAGE_TYPE_2D VK_IMAGE_TILING_OPTIMAL VK_IMAGE_USAGE_TRANSFER_DST_BIT, supportsExternalMemory? 1, requiresDedicated? 0
+INFO         | Selecting Vulkan device: Intel(R) UHD Graphics 630, Version: 1.2.151
+DEBUG   | deviceInfo: 
+hasGraphicsQueueFamily = 1
+hasComputeQueueFamily = 1
+externalMemoryMode = OpaqueWin32
+supportsExternalMemoryImport = 1
+supportsExternalMemoryExport = 1
+supportsDriverProperties = 1
+hasSamplerYcbcrConversionExtension = 0
+supportsSamplerYcbcrConversion = 0
+glInteropSupported = 0
+DEBUG   | Vulkan logical device created and extension functions obtained.
+DEBUG   | Vulkan device queue obtained.
+VERBOSE | create: selected memory type index = 1, propertyFlags = 15, heapIndex = 0
+VERBOSE | Vulkan global emulation state successfully initialized.
+DEBUG   | (anonymous namespace)::WinEngine::WinEngine: Trying to load opengl32.dll
+
+VERBOSE | SharedLibrary::open for [opengl32.dll]: not found in map, open for the first time
+VERBOSE | SharedLibrary::open for [opengl32.dll] (win32): call LoadLibrary
+VERBOSE | SharedLibrary::open succeeded for [opengl32.dll]. File name: [C:\WINDOWS\SYSTEM32\opengl32.DLL]
+DEBUG   | (anonymous namespace)::WinEngine::WinEngine: Library loaded at 000001E404528F30
+
+ERROR        | (anonymous namespace)::WglExtensionsDispatch::init: Could not find wglGetExtensionsString! arbFound 0 listarbNull/empty 1 0 extFound 0 extNull/empty 1 0 remote 0
+
+DEBUG   | (anonymous namespace)::WinEngine::WinEngine: Dispatch initialized
+
+DEBUG   | call eglInitialize
+ERROR        | OpenGL Core Profile not supported.
+
+ERROR        | Failed to find exactly 1 GLES 2.x config: found 0.
+ERROR        | Failed to validate creating GLES 2.x context.
+ERROR        | Failed to initialize GL emulation.
+ERROR        | Failed to initialize FrameBuffer().
+ERROR    
