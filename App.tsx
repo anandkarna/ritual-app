@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Fraunces_400Regular } from '@expo-google-fonts/fraunces/400Regular';
 import { Fraunces_500Medium } from '@expo-google-fonts/fraunces/500Medium';
@@ -12,11 +13,14 @@ import { useFonts } from 'expo-font';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import Constants from 'expo-constants';
 import {
   AccessibilityInfo,
   Animated,
+  AppState,
   Dimensions,
   Easing,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -29,6 +33,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Reanimated, {
+  cancelAnimation,
+  Easing as ReanimatedEasing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, {
   Circle,
   Defs,
@@ -38,11 +51,16 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 import {
+  ArrowRight,
   BarChart3,
   Bell,
+  Bot,
   CalendarDays,
   Check,
+  ChevronLeft,
   Clock3,
+  Eye,
+  EyeOff,
   Home,
   Lock,
   LogOut,
@@ -50,16 +68,17 @@ import {
   MessageCircle,
   Moon,
   Plus,
+  Send,
   Settings,
-  ShieldCheck,
   Sparkles,
   Sun,
   User,
   Zap,
 } from 'lucide-react-native';
 import React, { ComponentType, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createClient, processLock, User as SupabaseUser } from '@supabase/supabase-js';
 
-type TabKey = 'today' | 'progress' | 'insights' | 'profile';
+type TabKey = 'today' | 'progress' | 'coach' | 'insights' | 'profile';
 type PaletteKey = 'reading' | 'food' | 'focus' | 'water';
 type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
 
@@ -113,9 +132,10 @@ type BurstParticle = {
   duration: number;
 };
 
-type AuthMode = 'login' | 'create' | 'forgot';
+type AuthMode = 'signIn' | 'createAccount' | 'forgot';
 
 type AuthAccount = {
+  id?: string;
   username: string;
   password: string;
   email: string;
@@ -126,12 +146,62 @@ type StoredAuth = {
   signedIn: boolean;
 };
 
+type CoachRole = 'assistant' | 'user';
+
+type CoachInsightCard = {
+  headline: string;
+  body: string;
+  bars?: number[];
+  metric?: string;
+};
+
+type CoachAction = {
+  id: string;
+  label: string;
+  type: 'reschedule_reminder' | 'suggest_new_ritual' | 'generate_weekly_recap';
+  payload?: Record<string, unknown>;
+};
+
+type CoachMessage = {
+  id: string;
+  role: CoachRole;
+  text: string;
+  insightCard?: CoachInsightCard;
+  suggestedActions?: CoachAction[];
+  pending?: boolean;
+};
+
+type SupabaseProfile = {
+  id: string;
+  username: string | null;
+  name: string | null;
+  email: string | null;
+  avatar_emoji?: string | null;
+  dark_theme?: boolean | null;
+  haptics_enabled?: boolean | null;
+  push_enabled?: boolean | null;
+};
+
+type SupabaseHabit = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string | null;
+  palette_key?: PaletteKey | null;
+  created_at: string | null;
+};
+
+type SupabaseHabitLog = {
+  habit_id: string;
+  log_date: string;
+};
+
 const STORAGE_KEY = 'flow-liquid-redesign-v4-clean';
 const AUTH_STORAGE_KEY = 'flow-auth-v1';
 const DEFAULT_AUTH_ACCOUNT: AuthAccount = {
   username: 'Pratik',
   password: 'Pratik@16',
-  email: 'pratik@example.com',
+  email: 'pratik@rituals.app',
 };
 const fontBody = 'Inter_500Medium';
 const fontBodyRegular = 'Inter_400Regular';
@@ -156,6 +226,21 @@ const colors = {
   track: 'rgba(120,140,180,0.14)',
   line: 'rgba(120,140,180,0.1)',
 };
+
+const runtimeExtra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
+const supabaseUrl = typeof runtimeExtra.supabaseUrl === 'string' ? runtimeExtra.supabaseUrl : undefined;
+const supabaseAnonKey = typeof runtimeExtra.supabaseAnonKey === 'string' ? runtimeExtra.supabaseAnonKey : undefined;
+const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+        lock: processLock,
+      },
+    })
+  : null;
 
 const habitPalette: Record<PaletteKey, HabitPalette> = {
   reading: { a: '#FFB25B', b: '#FFDCA6', bg: ['#FFF6EA', '#FFEBD1'], ink: '#B4600A' },
@@ -234,6 +319,7 @@ function normalizeState(parsed: Partial<SavedFlowState>): SavedFlowState {
 function normalizeAuth(parsed: Partial<StoredAuth> | null): StoredAuth {
   const account = parsed?.account?.username && parsed.account.password
     ? {
+        id: parsed.account.id,
         username: parsed.account.username,
         password: parsed.account.password,
         email: parsed.account.email || DEFAULT_AUTH_ACCOUNT.email,
@@ -242,6 +328,217 @@ function normalizeAuth(parsed: Partial<StoredAuth> | null): StoredAuth {
   return {
     account,
     signedIn: parsed?.signedIn ?? false,
+  };
+}
+
+function toUsername(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || `ritual_${Date.now()}`;
+}
+
+function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfile> | null): AuthAccount {
+  const email = user.email ?? profile?.email ?? '';
+  const username = profile?.name || profile?.username || user.user_metadata?.full_name || user.user_metadata?.username || email.split('@')[0] || 'Rituals user';
+  return {
+    id: user.id,
+    username,
+    email,
+    password: '',
+  };
+}
+
+async function getProfileForUser(user: SupabaseUser) {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data as SupabaseProfile | null;
+}
+
+async function upsertProfileForUser(user: SupabaseUser, username: string, name: string, email: string) {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: user.id,
+        username,
+        name,
+        email,
+        avatar_emoji: '🙂',
+      },
+      { onConflict: 'id' },
+    )
+    .select('id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as SupabaseProfile;
+}
+
+async function resolveEmailForIdentifier(identifier: string) {
+  if (!supabase) {
+    return identifier.trim().toLowerCase();
+  }
+
+  const normalized = identifier.trim().toLowerCase();
+  if (isValidEmail(normalized)) {
+    return normalized;
+  }
+
+  const { data, error } = await supabase.rpc('email_for_username', { lookup_username: normalized });
+  if (error || typeof data !== 'string' || !data) {
+    throw new Error('Account not found. Use your email or correct username.');
+  }
+
+  return data;
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isoDaysBack(count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (count - 1 - index));
+    return date.toISOString().slice(0, 10);
+  });
+}
+
+function paletteToDbColor(paletteKey: PaletteKey) {
+  return paletteKey === 'reading' ? 'amber' : paletteKey === 'food' ? 'sky' : paletteKey === 'focus' ? 'violet' : 'sky';
+}
+
+function dbColorToPalette(color: string | null | undefined, fallbackIndex: number): PaletteKey {
+  if (color === 'amber' || color === 'coral') return 'reading';
+  if (color === 'violet') return 'focus';
+  if (color === 'sky') return 'water';
+  return paletteRotation[fallbackIndex % paletteRotation.length];
+}
+
+function currentStreakFromHeat(heat: number[]) {
+  let streak = 0;
+  for (let index = heat.length - 1; index >= 0; index -= 1) {
+    if (!heat[index]) {
+      break;
+    }
+    streak += 1;
+  }
+  return streak;
+}
+
+function longestStreakFromHeat(heat: number[]) {
+  let best = 0;
+  let current = 0;
+  heat.forEach((value) => {
+    if (value) {
+      current += 1;
+      best = Math.max(best, current);
+      return;
+    }
+    current = 0;
+  });
+  return best;
+}
+
+function ritualsFromSupabaseRows(habits: SupabaseHabit[], logs: SupabaseHabitLog[]) {
+  const days30 = isoDaysBack(30);
+  const days7 = days30.slice(-7);
+  const today = todayIso();
+  const logsByHabit = new Map<string, Set<string>>();
+
+  logs.forEach((log) => {
+    const dates = logsByHabit.get(log.habit_id) ?? new Set<string>();
+    dates.add(log.log_date);
+    logsByHabit.set(log.habit_id, dates);
+  });
+
+  return habits.map((habit, index): Ritual => {
+    const dates = logsByHabit.get(habit.id) ?? new Set<string>();
+    const heat = days30.map((day) => (dates.has(day) ? 1 : 0));
+    const weekly = days7.map((day) => (dates.has(day) ? 1 : 0));
+    const paletteKey = habit.palette_key && habitPalette[habit.palette_key] ? habit.palette_key : dbColorToPalette(habit.color, index);
+    return {
+      id: habit.id,
+      name: habit.name,
+      icon: habit.icon,
+      paletteKey,
+      streakDays: currentStreakFromHeat(heat),
+      bestStreakDays: longestStreakFromHeat(heat),
+      doneToday: dates.has(today),
+      weekly,
+      heat,
+      createdAt: habit.created_at ? Date.parse(habit.created_at) : Date.now() + index,
+    };
+  });
+}
+
+async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowState> | null> {
+  if (!supabase) {
+    return null;
+  }
+
+  const since = isoDaysBack(30)[0];
+  const { data: habits, error: habitsError } = await supabase
+    .from('habits')
+    .select('id,name,icon,color,palette_key,created_at')
+    .eq('user_id', userId)
+    .eq('is_archived', false)
+    .order('created_at', { ascending: true });
+
+  if (habitsError) {
+    throw habitsError;
+  }
+
+  const { data: logs, error: logsError } = await supabase
+    .from('habit_logs')
+    .select('habit_id,log_date')
+    .eq('user_id', userId)
+    .gte('log_date', since);
+
+  if (logsError) {
+    throw logsError;
+  }
+
+  const profile = await supabase
+    .from('profiles')
+    .select('dark_theme,haptics_enabled,push_enabled')
+    .eq('id', userId)
+    .maybeSingle();
+  const profileData = profile.data as Pick<SupabaseProfile, 'dark_theme' | 'haptics_enabled' | 'push_enabled'> | null;
+  const rituals = ritualsFromSupabaseRows((habits ?? []) as SupabaseHabit[], (logs ?? []) as SupabaseHabitLog[]);
+
+  return {
+    rituals,
+    totalActiveRituals: rituals.length,
+    baseDoneFromOtherHabits: 0,
+    settings: {
+      ...seedSettings,
+      darkTheme: profileData?.dark_theme ?? seedSettings.darkTheme,
+      haptics: profileData?.haptics_enabled ?? seedSettings.haptics,
+      pushNotifications: profileData?.push_enabled ?? seedSettings.pushNotifications,
+    },
   };
 }
 
@@ -317,17 +614,72 @@ function AuthenticatedApp() {
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(AUTH_STORAGE_KEY)
-      .then((stored) => {
-        const parsed = stored ? normalizeAuth(JSON.parse(stored) as Partial<StoredAuth>) : normalizeAuth(null);
+    let mounted = true;
+
+    const hydrate = async () => {
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user) {
+          const profile = await getProfileForUser(data.session.user);
+          if (mounted) {
+            setAccount(authAccountFromUser(data.session.user, profile));
+            setSignedIn(true);
+          }
+        }
+        if (mounted) {
+          setReady(true);
+        }
+        return;
+      }
+
+      const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+      const parsed = stored ? normalizeAuth(JSON.parse(stored) as Partial<StoredAuth>) : normalizeAuth(null);
+      if (mounted) {
         setAccount(parsed.account);
         setSignedIn(parsed.signedIn);
-      })
-      .catch(() => undefined)
-      .finally(() => setReady(true));
+        setReady(true);
+      }
+    };
+
+    hydrate().catch(() => {
+      if (mounted) {
+        setReady(true);
+      }
+    });
+
+    const authSubscription = supabase?.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) {
+        return;
+      }
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        setSignedIn(false);
+        return;
+      }
+      const profile = await getProfileForUser(session.user);
+      if (mounted) {
+        setAccount(authAccountFromUser(session.user, profile));
+        setSignedIn(true);
+      }
+    }).data.subscription;
+
+    const appStateSubscription = supabase && Platform.OS !== 'web'
+      ? AppState.addEventListener('change', (state) => {
+          if (state === 'active') {
+            supabase.auth.startAutoRefresh();
+          } else {
+            supabase.auth.stopAutoRefresh();
+          }
+        })
+      : null;
+
+    return () => {
+      mounted = false;
+      authSubscription?.unsubscribe();
+      appStateSubscription?.remove();
+    };
   }, []);
 
-  const saveAuth = useCallback((nextAccount: AuthAccount, nextSignedIn: boolean) => {
+  const saveLocalAuth = useCallback((nextAccount: AuthAccount, nextSignedIn: boolean) => {
     setAccount(nextAccount);
     setSignedIn(nextSignedIn);
     AsyncStorage.setItem(
@@ -344,14 +696,44 @@ function AuthenticatedApp() {
     return (
       <AuthGate
         account={account}
-        onLogin={(nextAccount) => saveAuth(nextAccount, true)}
-        onCreate={(nextAccount) => saveAuth(nextAccount, true)}
-        onResetPassword={(nextAccount) => saveAuth(nextAccount, false)}
+        onLogin={(nextAccount) => {
+          setAccount(nextAccount);
+          setSignedIn(true);
+          if (!supabase) {
+            saveLocalAuth(nextAccount, true);
+          }
+        }}
+        onCreate={(nextAccount) => {
+          setAccount(nextAccount);
+          setSignedIn(true);
+          if (!supabase) {
+            saveLocalAuth(nextAccount, true);
+          }
+        }}
+        onResetPassword={(nextAccount) => {
+          setAccount(nextAccount);
+          if (!supabase) {
+            saveLocalAuth(nextAccount, false);
+          }
+        }}
       />
     );
   }
 
-  return <FlowApp username={account.username} onLogout={() => saveAuth(account, false)} />;
+  return (
+    <FlowApp
+      userId={account.id}
+      username={account.username}
+      onLogout={() => {
+        if (supabase) {
+          supabase.auth.signOut().catch(() => undefined);
+          setSignedIn(false);
+          return;
+        }
+        saveLocalAuth(account, false);
+      }}
+    />
+  );
 }
 
 function AuthGate({
@@ -368,15 +750,22 @@ function AuthGate({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
-  const [mode, setMode] = useState<AuthMode>('login');
-  const [username, setUsername] = useState(DEFAULT_AUTH_ACCOUNT.username);
+  const [mode, setMode] = useState<AuthMode>('signIn');
+  const [identifier, setIdentifier] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const cardAnim = useEntranceAnimation(mode, reduceMotion);
   const contentMaxWidth = width >= 720 ? 440 : undefined;
+  const emailIsInvalid = email.length > 0 && !isValidEmail(email);
+  const strength = getPasswordStrength(password);
 
   const clearFeedback = () => {
     setError('');
@@ -387,17 +776,45 @@ function AuthGate({
     setMode(nextMode);
     setPassword('');
     setConfirmPassword('');
-    setEmail('');
+    setPasswordVisible(false);
+    setTermsAccepted(false);
     clearFeedback();
   };
 
-  const matchesAccount = (candidate: AuthAccount) =>
-    username.trim() === candidate.username && password === candidate.password;
+  const matchesAccount = (candidate: AuthAccount) => {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    return (
+      (normalizedIdentifier === candidate.username.toLowerCase() || normalizedIdentifier === candidate.email.toLowerCase()) &&
+      password === candidate.password
+    );
+  };
 
-  const submitLogin = () => {
+  const submitSignIn = async () => {
     clearFeedback();
-    if (!username.trim() || !password) {
-      setError('Enter username and password.');
+    if (!identifier.trim() || !password) {
+      setError('Enter your email or username and password.');
+      return;
+    }
+    if (supabase) {
+      if (matchesAccount(DEFAULT_AUTH_ACCOUNT)) {
+        onLogin(DEFAULT_AUTH_ACCOUNT);
+        return;
+      }
+      try {
+        setSubmitting(true);
+        const email = await resolveEmailForIdentifier(identifier);
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError || !data.user) {
+          setError(signInError?.message ?? 'Email/username or password is incorrect.');
+          return;
+        }
+        const profile = await getProfileForUser(data.user);
+        onLogin(authAccountFromUser(data.user, profile));
+      } catch (authError) {
+        setError(authError instanceof Error ? authError.message : 'Unable to sign in.');
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     if (matchesAccount(account)) {
@@ -408,41 +825,105 @@ function AuthGate({
       onLogin(DEFAULT_AUTH_ACCOUNT);
       return;
     }
-    setError('Username or password is incorrect.');
+    setError('Email/username or password is incorrect.');
   };
 
-  const submitCreate = () => {
+  const submitCreate = async () => {
     clearFeedback();
-    const trimmedUsername = username.trim();
-    const trimmedEmail = email.trim();
-    if (trimmedUsername.length < 2) {
-      setError('Username must be at least 2 characters.');
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const username = toUsername(trimmedName);
+    if (trimmedName.length < 2) {
+      setError('Enter your full name.');
       return;
     }
-    if (trimmedEmail && !trimmedEmail.includes('@')) {
+    if (!isValidEmail(trimmedEmail)) {
       setError('Enter a valid email address.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (strength.score < 2) {
+      setError('Use a stronger password before creating an account.');
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (!termsAccepted) {
+      setError('Agree to the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
+    if (supabase) {
+      try {
+        setSubmitting(true);
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: trimmedEmail,
+          password,
+          options: {
+            data: {
+              username,
+              full_name: trimmedName,
+            },
+          },
+        });
+        if (signUpError || !data.user) {
+          setError(signUpError?.message ?? 'Unable to create account.');
+          return;
+        }
+        const profile = data.session
+          ? await upsertProfileForUser(data.user, username, trimmedName, trimmedEmail)
+          : null;
+        if (!data.session) {
+          setMessage('Account created. Check your email to confirm, then sign in.');
+          setMode('signIn');
+          setIdentifier(trimmedEmail);
+          setPassword('');
+          return;
+        }
+        onCreate(authAccountFromUser(data.user, profile));
+      } catch (authError) {
+        setError(authError instanceof Error ? authError.message : 'Unable to create account.');
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     onCreate({
-      username: trimmedUsername,
+      username,
       password,
-      email: trimmedEmail || `${trimmedUsername.toLowerCase()}@example.com`,
+      email: trimmedEmail,
     });
   };
 
-  const submitReset = () => {
+  const submitReset = async () => {
     clearFeedback();
-    const trimmedUsername = username.trim();
-    const knownUser = trimmedUsername === account.username || trimmedUsername === DEFAULT_AUTH_ACCOUNT.username;
-    if (!knownUser) {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    if (supabase) {
+      if (!normalizedIdentifier) {
+        setError('Enter your email or username.');
+        return;
+      }
+      try {
+        setSubmitting(true);
+        const resetEmail = await resolveEmailForIdentifier(normalizedIdentifier);
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail);
+        if (resetError) {
+          setError(resetError.message);
+          return;
+        }
+        setMode('signIn');
+        setIdentifier(resetEmail);
+        setMessage('Password reset email sent. Open the link from your inbox.');
+      } catch (authError) {
+        setError(authError instanceof Error ? authError.message : 'Unable to send reset email.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+    const knownAccount = normalizedIdentifier === account.username.toLowerCase() || normalizedIdentifier === account.email.toLowerCase()
+      ? account
+      : normalizedIdentifier === DEFAULT_AUTH_ACCOUNT.username.toLowerCase() || normalizedIdentifier === DEFAULT_AUTH_ACCOUNT.email.toLowerCase()
+        ? DEFAULT_AUTH_ACCOUNT
+        : null;
+
+    if (!knownAccount) {
       setError('Account not found on this device.');
       return;
     }
@@ -454,25 +935,31 @@ function AuthGate({
       setError('Passwords do not match.');
       return;
     }
-    const targetAccount = trimmedUsername === account.username ? account : DEFAULT_AUTH_ACCOUNT;
-    onResetPassword({ ...targetAccount, password });
-    setMode('login');
+    onResetPassword({ ...knownAccount, password });
+    setMode('signIn');
     setMessage('Password updated. Sign in with the new password.');
     setPassword('');
     setConfirmPassword('');
   };
 
   const submit = () => {
-    if (mode === 'login') {
-      submitLogin();
+    if (submitting) {
       return;
     }
-    if (mode === 'create') {
-      submitCreate();
+    if (mode === 'signIn') {
+      submitSignIn().catch(() => setError('Unable to sign in.'));
       return;
     }
-    submitReset();
+    if (mode === 'createAccount') {
+      submitCreate().catch(() => setError('Unable to create account.'));
+      return;
+    }
+    submitReset().catch(() => setError('Unable to reset password.'));
   };
+
+  const isCreate = mode === 'createAccount';
+  const isReset = mode === 'forgot';
+  const usesSupabaseAuth = Boolean(supabase);
 
   return (
     <View style={styles.root}>
@@ -485,102 +972,169 @@ function AuthGate({
             contentContainerStyle={[
               styles.authScroll,
               {
-                paddingTop: Math.max(insets.top + 20, 36),
-                paddingBottom: insets.bottom + 32,
+                paddingTop: Math.max(insets.top, 10),
+                paddingBottom: insets.bottom + 34,
                 maxWidth: contentMaxWidth,
               },
             ]}
           >
+            {isCreate || isReset ? (
+              <PressScale reduceMotion={reduceMotion} onPress={() => switchMode('signIn')} style={styles.authBackButton}>
+                <ChevronLeft size={18} color={colors.ink} strokeWidth={2.6} />
+              </PressScale>
+            ) : null}
+
+            <AuthHero mode={mode} reduceMotion={reduceMotion} />
+
             <Animated.View style={[styles.authCardWrap, cardAnim]}>
-              <GradientCard style={styles.authCard}>
-                <View style={styles.authLogoWrap}>
-                  <LinearGradient colors={[colors.blue1, colors.blue2]} style={styles.authLogo}>
-                    <ShieldCheck size={30} color="#FFFFFF" strokeWidth={2.6} />
-                  </LinearGradient>
-                </View>
-                <Text style={styles.authTitle}>Flow</Text>
-                <Text style={styles.authSubtitle}>
-                  {mode === 'login' ? 'Sign in to start today clean.' : mode === 'create' ? 'Create your local Flow account.' : 'Reset your local password.'}
-                </Text>
-
-                <View style={styles.authModeRow}>
-                  <AuthModeButton label="Login" active={mode === 'login'} onPress={() => switchMode('login')} />
-                  <AuthModeButton label="Create" active={mode === 'create'} onPress={() => switchMode('create')} />
-                  <AuthModeButton label="Reset" active={mode === 'forgot'} onPress={() => switchMode('forgot')} />
-                </View>
-
-                <AuthInput
-                  icon={User}
-                  label="Username"
-                  value={username}
-                  onChangeText={(value) => {
-                    setUsername(value);
-                    clearFeedback();
-                  }}
-                  placeholder="Pratik"
-                  returnKeyType="next"
-                />
-                {mode === 'create' ? (
-                  <AuthInput
-                    icon={Mail}
-                    label="Email"
-                    value={email}
-                    onChangeText={(value) => {
-                      setEmail(value);
-                      clearFeedback();
-                    }}
-                    placeholder="name@example.com"
-                    keyboardType="email-address"
-                    returnKeyType="next"
-                  />
-                ) : null}
-                <AuthInput
-                  icon={Lock}
-                  label={mode === 'forgot' ? 'New password' : 'Password'}
-                  value={password}
-                  onChangeText={(value) => {
-                    setPassword(value);
-                    clearFeedback();
-                  }}
-                  placeholder={mode === 'login' ? 'Password' : 'Minimum 6 characters'}
-                  secureTextEntry
-                  returnKeyType={mode === 'login' ? 'done' : 'next'}
-                  onSubmitEditing={mode === 'login' ? submit : undefined}
-                />
-                {mode !== 'login' ? (
-                  <AuthInput
-                    icon={Lock}
-                    label="Confirm password"
-                    value={confirmPassword}
-                    onChangeText={(value) => {
-                      setConfirmPassword(value);
-                      clearFeedback();
-                    }}
-                    placeholder="Re-enter password"
-                    secureTextEntry
-                    returnKeyType="done"
-                    onSubmitEditing={submit}
-                  />
-                ) : null}
+              <GradientCard style={[styles.authCard, isCreate && styles.authCardCreate]}>
+                {isCreate ? (
+                  <>
+                    <AuthInput
+                      icon={User}
+                      label="Username"
+                      value={fullName}
+                      onChangeText={(value) => {
+                        setFullName(value);
+                        clearFeedback();
+                      }}
+                      placeholder="Pratik"
+                      returnKeyType="next"
+                    />
+                    <AuthInput
+                      icon={Mail}
+                      label="Email"
+                      value={email}
+                      onChangeText={(value) => {
+                        setEmail(value);
+                        clearFeedback();
+                      }}
+                      placeholder="you@rituals.app"
+                      keyboardType="email-address"
+                      returnKeyType="next"
+                      error={emailIsInvalid}
+                      helperText={emailIsInvalid ? 'Enter a valid email address' : undefined}
+                    />
+                    <AuthInput
+                      icon={Lock}
+                      label="Password"
+                      value={password}
+                      onChangeText={(value) => {
+                        setPassword(value);
+                        clearFeedback();
+                      }}
+                      placeholder="Create a password"
+                      secureTextEntry={!passwordVisible}
+                      trailing={(
+                        <Pressable accessibilityRole="button" onPress={() => setPasswordVisible((current) => !current)} hitSlop={8}>
+                          {passwordVisible ? <EyeOff size={18} color={colors.inkFaint} /> : <Eye size={18} color={colors.inkFaint} />}
+                        </Pressable>
+                      )}
+                    />
+                    <PasswordStrengthMeter strength={strength} />
+                    <TermsAgreement
+                      checked={termsAccepted}
+                      onToggle={() => {
+                        setTermsAccepted((current) => !current);
+                        clearFeedback();
+                      }}
+                      onOpenTerms={() => setMessage('Terms of Service will open after the policy screen is connected.')}
+                      onOpenPrivacy={() => setMessage('Privacy Policy will open after the policy screen is connected.')}
+                      required={!termsAccepted && Boolean(error)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.authCardTitle}>{isReset ? 'Reset password' : 'Welcome back'}</Text>
+                    <Text style={styles.authCardSub}>{isReset ? 'Send a reset link to your Supabase account email' : 'Sign in to keep your streaks flowing'}</Text>
+                    <AuthInput
+                      icon={Mail}
+                      label="Email or username"
+                      value={identifier}
+                      onChangeText={(value) => {
+                        setIdentifier(value);
+                        clearFeedback();
+                      }}
+                      placeholder="Pratik or pratik@rituals.app"
+                      returnKeyType="next"
+                    />
+                    {isReset && usesSupabaseAuth ? null : (
+                      <AuthInput
+                        icon={Lock}
+                        label={isReset ? 'New password' : 'Password'}
+                        value={password}
+                        onChangeText={(value) => {
+                          setPassword(value);
+                          clearFeedback();
+                        }}
+                        placeholder={isReset ? 'Minimum 6 characters' : 'Enter your password'}
+                        secureTextEntry={!passwordVisible}
+                        returnKeyType={isReset ? 'next' : 'done'}
+                        onSubmitEditing={isReset ? undefined : submit}
+                        trailing={(
+                          <Pressable accessibilityRole="button" onPress={() => setPasswordVisible((current) => !current)} hitSlop={8}>
+                            {passwordVisible ? <EyeOff size={18} color={colors.inkFaint} /> : <Eye size={18} color={colors.inkFaint} />}
+                          </Pressable>
+                        )}
+                      />
+                    )}
+                    {isReset && !usesSupabaseAuth ? (
+                      <AuthInput
+                        icon={Lock}
+                        label="Confirm password"
+                        value={confirmPassword}
+                        onChangeText={(value) => {
+                          setConfirmPassword(value);
+                          clearFeedback();
+                        }}
+                        placeholder="Re-enter password"
+                        secureTextEntry={!passwordVisible}
+                        returnKeyType="done"
+                        onSubmitEditing={submit}
+                      />
+                    ) : (
+                      <View style={styles.authBetweenRow}>
+                        <CheckLine checked={rememberMe} onPress={() => setRememberMe((current) => !current)} label="Remember me" compact />
+                        <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')}>
+                          <Text style={styles.authInlineLink}>Forgot password?</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </>
+                )}
 
                 {error ? <Text style={styles.authError}>{error}</Text> : null}
                 {message ? <Text style={styles.authMessage}>{message}</Text> : null}
 
-                <Pressable accessibilityRole="button" onPress={submit} style={styles.authPrimaryButton}>
+                <PressScale reduceMotion={reduceMotion} onPress={submit} style={styles.authPrimaryButton}>
                   <Text style={styles.authPrimaryText}>
-                    {mode === 'login' ? 'Sign in' : mode === 'create' ? 'Create account' : 'Update password'}
+                    {submitting ? 'Please wait' : isCreate ? 'Create account' : isReset ? usesSupabaseAuth ? 'Send reset link' : 'Update password' : 'Sign in'}
                   </Text>
-                </Pressable>
+                  <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.7} />
+                </PressScale>
 
-                {mode === 'login' ? (
-                  <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')} style={styles.authLinkButton}>
-                    <Text style={styles.authLinkText}>Forgot password?</Text>
+                {!isReset ? (
+                  <>
+                    <View style={styles.authDivider}>
+                      <View style={styles.authDividerLine} />
+                      <Text style={styles.authDividerText}>{isCreate ? 'or sign up with' : 'or continue with'}</Text>
+                      <View style={styles.authDividerLine} />
+                    </View>
+                    <View style={styles.authSocialRow}>
+                      <SocialButton label="Google" reduceMotion={reduceMotion} onPress={() => setMessage('Google sign-in will connect after Supabase Auth setup.')} />
+                      <SocialButton label="Apple" reduceMotion={reduceMotion} onPress={() => setMessage('Apple sign-in will connect after Supabase Auth setup.')} />
+                    </View>
+                  </>
+                ) : null}
+
+                <View style={styles.authFooterLine}>
+                  <Text style={styles.authFooterMuted}>
+                    {isCreate || isReset ? 'Already have an account? ' : 'New to Rituals? '}
+                  </Text>
+                  <Pressable accessibilityRole="button" onPress={() => switchMode(isCreate || isReset ? 'signIn' : 'createAccount')}>
+                    <Text style={styles.authFooterLink}>{isCreate || isReset ? 'Sign in' : 'Create account'}</Text>
                   </Pressable>
-                ) : (
-                  <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.authLinkButton}>
-                    <Text style={styles.authLinkText}>Back to login</Text>
-                  </Pressable>
-                )}
+                </View>
               </GradientCard>
             </Animated.View>
           </ScrollView>
@@ -590,11 +1144,143 @@ function AuthGate({
   );
 }
 
-function AuthModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function getPasswordStrength(value: string) {
+  if (!value) {
+    return { score: 0, label: 'Use 8+ characters with a number', color: colors.inkFaint };
+  }
+  let score = 0;
+  if (value.length >= 8) score += 1;
+  if (/[0-9]/.test(value) && /[a-zA-Z]/.test(value)) score += 1;
+  if (value.length >= 12 && /[^a-zA-Z0-9]/.test(value)) score += 1;
+  if (score <= 1) {
+    return { score: 1, label: 'Weak - add a number and more characters', color: colors.danger };
+  }
+  if (score === 2) {
+    return { score: 2, label: 'Good - a symbol makes it stronger', color: habitPalette.reading.a };
+  }
+  return { score: 3, label: 'Strong password', color: habitPalette.food.a };
+}
+
+function AuthHero({ mode, reduceMotion }: { mode: AuthMode; reduceMotion: boolean }) {
+  const isCreate = mode === 'createAccount';
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={[styles.authModeButton, active && styles.authModeButtonActive]}>
-      <Text style={[styles.authModeText, active && styles.authModeTextActive]}>{label}</Text>
-    </Pressable>
+    <View style={[styles.authHero, isCreate && styles.authHeroCompact]}>
+      <AnimatedWaveBackground reduceMotion={reduceMotion} compact={isCreate || mode === 'forgot'} />
+      <View style={styles.authHeroContent}>
+        <LogoMark size={isCreate || mode === 'forgot' ? 52 : 64} reduceMotion={reduceMotion} />
+        <Text style={isCreate ? styles.authCreateTitle : styles.authWordmark}>{isCreate ? 'Start your ritual' : 'Rituals'}</Text>
+        <Text style={styles.authHeroSubtitle}>
+          {isCreate ? 'Create an account to build streaks that stick' : mode === 'forgot' ? 'Reset your ritual flow' : 'Small rituals. Steady flow.'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function AnimatedWaveBackground({ reduceMotion, compact }: { reduceMotion: boolean; compact: boolean }) {
+  const drift = useSharedValue(0);
+  const width = 420;
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(drift);
+      drift.value = 0;
+      return;
+    }
+    drift.value = withRepeat(
+      withTiming(-width, { duration: compact ? 7000 : 6800, easing: ReanimatedEasing.linear }),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(drift);
+  }, [compact, drift, reduceMotion, width]);
+
+  const waveStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: drift.value }],
+  }));
+
+  return (
+    <View style={[styles.authWaveHost, compact && styles.authWaveHostCompact]}>
+      <LinearGradient colors={['#F5FAFF', colors.blue2]} style={StyleSheet.absoluteFill} />
+      <Reanimated.View style={[styles.authWaveSvgWrap, { width: width * 2 }, waveStyle]}>
+        <Svg width={width * 2} height={compact ? 96 : 170} viewBox={`0 0 ${width * 2} ${compact ? 96 : 170}`} preserveAspectRatio="none">
+          <Defs>
+            <SvgLinearGradient id="authWaveGrad" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={colors.blue2} />
+              <Stop offset="100%" stopColor={colors.blue1} />
+            </SvgLinearGradient>
+          </Defs>
+          <Path
+            d={compact
+              ? `M0 44 Q 52 24 105 44 T 210 44 T 315 44 T 420 44 T 525 44 T 630 44 T 735 44 T 840 44 V96 H0 Z`
+              : `M0 78 Q 52 48 105 78 T 210 78 T 315 78 T 420 78 T 525 78 T 630 78 T 735 78 T 840 78 V170 H0 Z`}
+            fill="url(#authWaveGrad)"
+          />
+        </Svg>
+      </Reanimated.View>
+    </View>
+  );
+}
+
+function LogoMark({ size, reduceMotion, palette = habitPalette.water }: { size: number; reduceMotion: boolean; palette?: HabitPalette }) {
+  const drift = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(drift);
+      drift.value = 0;
+      return;
+    }
+    drift.value = withRepeat(withTiming(-30, { duration: 3400, easing: ReanimatedEasing.linear }), -1, false);
+    return () => cancelAnimation(drift);
+  }, [drift, reduceMotion]);
+
+  const waveStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: drift.value }],
+  }));
+
+  return (
+    <View style={[styles.logoMark, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Svg width={size} height={size} viewBox="0 0 64 64" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <SvgLinearGradient id="logoArcGrad" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0%" stopColor={palette.b} />
+            <Stop offset="100%" stopColor={palette.a} />
+          </SvgLinearGradient>
+        </Defs>
+        <Circle cx="32" cy="32" r="29" stroke="rgba(120,140,180,0.16)" strokeWidth="4" fill="none" />
+        <Circle
+          cx="32"
+          cy="32"
+          r="29"
+          stroke="url(#logoArcGrad)"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray="182.2"
+          strokeDashoffset="46"
+          fill="none"
+          transform="rotate(-90 32 32)"
+        />
+        <Circle cx="32" cy="32" r="24" fill="#FFFFFF" />
+      </Svg>
+      <View style={styles.logoClip}>
+        <Reanimated.View style={[styles.logoWaveLayer, waveStyle]}>
+          <Svg width={110} height={64} viewBox="-20 0 110 64" preserveAspectRatio="none">
+            <Defs>
+              <SvgLinearGradient id="logoFillGrad" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0%" stopColor={palette.b} />
+                <Stop offset="100%" stopColor={palette.a} />
+              </SvgLinearGradient>
+            </Defs>
+            <Path d="M-20 26 Q -12 18 -4 26 T 12 26 T 28 26 T 44 26 T 60 26 T 76 26 V64 H-20 Z" fill="url(#logoFillGrad)" />
+          </Svg>
+        </Reanimated.View>
+      </View>
+    </View>
   );
 }
 
@@ -608,6 +1294,9 @@ function AuthInput({
   keyboardType,
   returnKeyType,
   onSubmitEditing,
+  trailing,
+  error,
+  helperText,
 }: {
   icon: IconComponent;
   label: string;
@@ -618,13 +1307,23 @@ function AuthInput({
   keyboardType?: 'default' | 'email-address';
   returnKeyType?: 'done' | 'next';
   onSubmitEditing?: () => void;
+  trailing?: ReactNode;
+  error?: boolean;
+  helperText?: string;
 }) {
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
   return (
     <View style={styles.authField}>
       <Text style={styles.authFieldLabel}>{label}</Text>
-      <View style={styles.authInputShell}>
-        <Icon size={18} color={colors.inkSoft} strokeWidth={2.3} />
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => inputRef.current?.focus()}
+        style={[styles.authInputShell, focused && styles.authInputShellFocused, error && styles.authInputShellError]}
+      >
+        <Icon size={18} color={colors.inkFaint} strokeWidth={2.3} />
         <TextInput
+          ref={inputRef}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -634,15 +1333,139 @@ function AuthInput({
           autoCorrect={false}
           keyboardType={keyboardType}
           returnKeyType={returnKeyType}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={returnKeyType === 'done'}
+          textContentType={secureTextEntry ? 'password' : keyboardType === 'email-address' ? 'emailAddress' : 'username'}
+          autoComplete={secureTextEntry ? 'password' : keyboardType === 'email-address' ? 'email' : 'username'}
+          importantForAutofill="yes"
           style={styles.authInput}
         />
-      </View>
+        {trailing}
+      </Pressable>
+      {helperText ? <Text style={styles.authHelperError}>{helperText}</Text> : null}
     </View>
   );
 }
 
-function FlowApp({ username, onLogout }: { username: string; onLogout: () => void }) {
+function PasswordStrengthMeter({ strength }: { strength: { score: number; label: string; color: string } }) {
+  return (
+    <View style={styles.strengthBlock}>
+      <View style={styles.strengthRow}>
+        {[1, 2, 3].map((index) => (
+          <View key={index} style={[styles.strengthSegment, index <= strength.score && { backgroundColor: strength.color }]} />
+        ))}
+      </View>
+      <Text style={[styles.strengthLabel, strength.score > 0 && { color: strength.color }]}>{strength.label}</Text>
+    </View>
+  );
+}
+
+function CheckLine({
+  checked,
+  onPress,
+  label,
+  compact = false,
+  required = false,
+}: {
+  checked: boolean;
+  onPress: () => void;
+  label: string;
+  compact?: boolean;
+  required?: boolean;
+}) {
+  return (
+    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={onPress} style={[compact ? styles.authCheckCompact : styles.authCheckLine]}>
+      <View style={[styles.authCheckbox, checked && styles.authCheckboxChecked, required && styles.authCheckboxRequired]}>
+        {checked ? (
+          <LinearGradient colors={[colors.blue1, '#2E8FE8']} style={styles.authCheckboxGradient}>
+            <Check size={12} color="#FFFFFF" strokeWidth={3} />
+          </LinearGradient>
+        ) : null}
+      </View>
+      <Text style={[styles.authCheckText, compact && styles.authCheckTextCompact]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function TermsAgreement({
+  checked,
+  onToggle,
+  onOpenTerms,
+  onOpenPrivacy,
+  required,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  onOpenTerms: () => void;
+  onOpenPrivacy: () => void;
+  required: boolean;
+}) {
+  return (
+    <View style={styles.authCheckLine}>
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={onToggle} style={[styles.authCheckbox, checked && styles.authCheckboxChecked, required && styles.authCheckboxRequired]}>
+        {checked ? (
+          <LinearGradient colors={[colors.blue1, '#2E8FE8']} style={styles.authCheckboxGradient}>
+            <Check size={12} color="#FFFFFF" strokeWidth={3} />
+          </LinearGradient>
+        ) : null}
+      </Pressable>
+      <Text style={styles.authCheckText} onPress={onToggle}>
+        I agree to the{' '}
+        <Text style={styles.authFooterLink} onPress={onOpenTerms}>
+          Terms of Service
+        </Text>{' '}
+        and{' '}
+        <Text style={styles.authFooterLink} onPress={onOpenPrivacy}>
+          Privacy Policy
+        </Text>
+      </Text>
+    </View>
+  );
+}
+
+function SocialButton({ label, reduceMotion, onPress }: { label: string; reduceMotion: boolean; onPress: () => void }) {
+  return (
+    <PressScale reduceMotion={reduceMotion} onPress={onPress} style={styles.authSocialButton}>
+      <Text style={styles.authSocialGlyph}>{label === 'Google' ? 'G' : 'A'}</Text>
+      <Text style={styles.authSocialText}>{label}</Text>
+    </PressScale>
+  );
+}
+
+function PressScale({
+  children,
+  onPress,
+  style,
+  reduceMotion,
+}: {
+  children: ReactNode;
+  onPress?: () => void;
+  style?: object;
+  reduceMotion: boolean;
+}) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => {
+        scale.value = reduceMotion ? 1 : withTiming(0.97, { duration: 120 });
+      }}
+      onPressOut={() => {
+        scale.value = reduceMotion ? 1 : withSpring(1, { damping: 14, stiffness: 260 });
+      }}
+    >
+      <Reanimated.View style={[style, animatedStyle]}>{children}</Reanimated.View>
+    </Pressable>
+  );
+}
+
+function FlowApp({ userId, username, onLogout }: { userId?: string; username: string; onLogout: () => void }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
@@ -659,24 +1482,65 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
   const [newRitualId, setNewRitualId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const isTablet = width >= 720;
+  const storageKey = useMemo(() => (userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY), [userId]);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
-        if (!stored) {
+    let mounted = true;
+    setHydrated(false);
+
+    const applyState = (state: SavedFlowState) => {
+      setRituals(state.rituals);
+      setTotalActiveRituals(state.totalActiveRituals);
+      setBaseDoneFromOtherHabits(state.baseDoneFromOtherHabits);
+      setSettings(state.settings);
+      setInsight(state.insight);
+      setSelectedRitualId(state.rituals[0]?.id ?? '');
+    };
+
+    const loadLocal = async () => {
+      const stored = await AsyncStorage.getItem(storageKey);
+      return stored ? normalizeState(JSON.parse(stored) as Partial<SavedFlowState>) : defaultState;
+    };
+
+    const hydrate = async () => {
+      if (supabase && userId) {
+        try {
+          const remote = await loadSupabaseFlowState(userId);
+          if (remote) {
+            const state = normalizeState({ ...defaultState, ...remote });
+            if (mounted) {
+              applyState(state);
+            }
+            await AsyncStorage.setItem(storageKey, JSON.stringify(state));
+            return;
+          }
+        } catch {
+          const local = await loadLocal();
+          if (mounted) {
+            applyState(local);
+          }
           return;
         }
-        const parsed = normalizeState(JSON.parse(stored) as Partial<SavedFlowState>);
-        setRituals(parsed.rituals);
-        setTotalActiveRituals(parsed.totalActiveRituals);
-        setBaseDoneFromOtherHabits(parsed.baseDoneFromOtherHabits);
-        setSettings(parsed.settings);
-        setInsight(parsed.insight);
-        setSelectedRitualId(parsed.rituals[0]?.id ?? '');
-      })
+      }
+
+      const local = await loadLocal();
+      if (mounted) {
+        applyState(local);
+      }
+    };
+
+    hydrate()
       .catch(() => undefined)
-      .finally(() => setHydrated(true));
-  }, []);
+      .finally(() => {
+        if (mounted) {
+          setHydrated(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [storageKey, userId]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -689,8 +1553,8 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
       settings,
       insight,
     };
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => undefined);
-  }, [baseDoneFromOtherHabits, hydrated, insight, rituals, settings, totalActiveRituals]);
+    AsyncStorage.setItem(storageKey, JSON.stringify(state)).catch(() => undefined);
+  }, [baseDoneFromOtherHabits, hydrated, insight, rituals, settings, storageKey, totalActiveRituals]);
 
   const doneCount = useMemo(
     () => baseDoneFromOtherHabits + rituals.filter((ritual) => ritual.doneToday).length,
@@ -745,6 +1609,11 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
   }, [settings.haptics]);
 
   const toggleRitual = (ritualId: string, x: number, y: number) => {
+    const target = rituals.find((ritual) => ritual.id === ritualId);
+    if (!target) {
+      return;
+    }
+    const nextDoneToday = !target.doneToday;
     let toastMessage = '';
     let burstPalette: HabitPalette | null = null;
 
@@ -753,7 +1622,7 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
         if (ritual.id !== ritualId) {
           return ritual;
         }
-        const doneToday = !ritual.doneToday;
+        const doneToday = nextDoneToday;
         const streakDays = Math.max(0, ritual.streakDays + (doneToday ? 1 : -1));
         const weekly = [...ritual.weekly];
         weekly[weekly.length - 1] = doneToday ? 1 : 0;
@@ -778,11 +1647,63 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
       fireBurst(x, y, burstPalette);
     }
     showToast(toastMessage);
+
+    if (supabase && userId) {
+      const logDate = todayIso();
+      const write = nextDoneToday
+        ? supabase.from('habit_logs').upsert(
+            {
+              habit_id: ritualId,
+              user_id: userId,
+              log_date: logDate,
+              completed_at: new Date().toISOString(),
+              freeze_used: false,
+            },
+            { onConflict: 'habit_id,log_date' },
+          )
+        : supabase
+            .from('habit_logs')
+            .delete()
+            .eq('habit_id', ritualId)
+            .eq('user_id', userId)
+            .eq('log_date', logDate);
+
+      write.then(({ error: writeError }) => {
+        if (writeError) {
+          showToast(`Database save failed: ${writeError.message}`);
+        }
+      });
+    }
   };
 
-  const addRitual = (name: string, icon: string) => {
+  const addRitual = async (name: string, icon: string) => {
     const paletteKey = paletteRotation[rituals.length % paletteRotation.length];
-    const id = `ritual-${Date.now()}`;
+    let id = `ritual-${Date.now()}`;
+    let createdAt = Date.now();
+
+    if (supabase && userId) {
+      const { data, error: insertError } = await supabase
+        .from('habits')
+        .insert({
+          user_id: userId,
+          name,
+          icon,
+          color: paletteToDbColor(paletteKey),
+          palette_key: paletteKey,
+          frequency: 'daily',
+        })
+        .select('id,created_at')
+        .single();
+
+      if (insertError || !data) {
+        showToast(`Database save failed: ${insertError?.message ?? 'Unable to add ritual'}`);
+        return;
+      }
+
+      id = data.id;
+      createdAt = data.created_at ? Date.parse(data.created_at) : createdAt;
+    }
+
     const next: Ritual = {
       id,
       name,
@@ -793,7 +1714,7 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
       doneToday: false,
       weekly: [0, 0, 0, 0, 0, 0, 0],
       heat: Array.from({ length: 30 }, () => 0),
-      createdAt: Date.now(),
+      createdAt,
     };
     setRituals((current) => [...current, next]);
     setSelectedRitualId(id);
@@ -809,9 +1730,24 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
     setSettings((current) => ({ ...current, [key]: value }));
     showToast(value ? 'Setting enabled' : 'Setting disabled');
     impact();
+
+    if (supabase && userId) {
+      const column = key === 'darkTheme' ? 'dark_theme' : key === 'haptics' ? 'haptics_enabled' : key === 'pushNotifications' ? 'push_enabled' : null;
+      if (column) {
+        supabase
+          .from('profiles')
+          .update({ [column]: value })
+          .eq('id', userId)
+          .then(({ error: writeError }) => {
+            if (writeError) {
+              showToast(`Database save failed: ${writeError.message}`);
+            }
+          });
+      }
+    }
   };
 
-  const generateInsight = () => {
+  const generateInsight = (coachText?: string) => {
     if (!rituals.length) {
       showToast('Create a ritual first');
       return;
@@ -819,7 +1755,7 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
     const strong = bestRitual(rituals);
     const weak = weakestRitual(rituals);
     const nextInsight = `${strong?.name ?? 'Your strongest ritual'} is carrying the week. Stack ${weak?.name ?? 'your lowest ritual'} immediately after it tomorrow and keep the reminder within the same hour.`;
-    setInsight(nextInsight);
+    setInsight(coachText ?? nextInsight);
     const screen = Dimensions.get('window');
     fireBurst(screen.width / 2, Math.max(220, insets.top + 210), habitPalette.water);
     showToast('✨ Weekly insight ready');
@@ -867,6 +1803,9 @@ function FlowApp({ username, onLogout }: { username: string; onLogout: () => voi
               reduceMotion={reduceMotion}
               onSelectRitual={setSelectedRitualId}
             />
+          ) : null}
+          {activeTab === 'coach' ? (
+            <CoachScreen rituals={rituals} reduceMotion={reduceMotion} onAddRitual={addRitual} />
           ) : null}
           {activeTab === 'insights' ? (
             <InsightsScreen rituals={rituals} insight={insight} reduceMotion={reduceMotion} onGenerate={generateInsight} />
@@ -1236,6 +2175,284 @@ function ProgressScreen({
   );
 }
 
+async function requestCoachReply(message: string, history: CoachMessage[], rituals: Ritual[]) {
+  if (supabase) {
+    const { data, error } = await supabase.functions.invoke('coach-chat', {
+      body: {
+        message,
+        conversationHistory: history.map((item) => ({ role: item.role, text: item.text })),
+      },
+    });
+    if (!error && data?.text) {
+      return data as { text: string; insightCard?: CoachInsightCard; suggestedActions?: CoachAction[] };
+    }
+  }
+  return buildLocalCoachReply(message, rituals);
+}
+
+function buildLocalCoachReply(message: string, rituals: Ritual[]): { text: string; insightCard?: CoachInsightCard; suggestedActions?: CoachAction[] } {
+  if (!rituals.length) {
+    return {
+      text: 'Create your first ritual and I can start coaching from your real completion data.',
+      suggestedActions: [{ id: 'new-water', label: 'Add a 2-minute water ritual', type: 'suggest_new_ritual', payload: { name: 'Water break', icon: '💧' } }],
+    };
+  }
+  const sorted = [...rituals].sort((a, b) => percentFromWeekly(b.weekly) - percentFromWeekly(a.weekly));
+  const strongest = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+  const strongestRate = percentFromWeekly(strongest.weekly);
+  const weakestRate = percentFromWeekly(weakest.weekly);
+  const broken = rituals.find((ritual) => !ritual.doneToday && ritual.streakDays >= 3);
+  const lower = message.toLowerCase();
+
+  if (lower.includes('break') || lower.includes('streak')) {
+    const target = broken ?? weakest;
+    return {
+      text: `${target.name} is the ritual to inspect. Its current streak is ${target.streakDays} days and this week is ${percentFromWeekly(target.weekly)}% complete, so the next best move is a smaller cue today.`,
+      insightCard: {
+        headline: `${target.name} needs a tighter cue.`,
+        body: `${target.name} has ${target.weekly.reduce((sum, value) => sum + value, 0)}/7 completions this week. That concrete miss pattern is why I would move it earlier.`,
+        bars: target.weekly,
+        metric: `${percentFromWeekly(target.weekly)}% weekly completion`,
+      },
+      suggestedActions: [{ id: `reschedule-${target.id}`, label: `Move ${target.name} reminder to 7pm`, type: 'reschedule_reminder', payload: { ritualId: target.id, reminderTime: '19:00' } }],
+    };
+  }
+
+  if (lower.includes('suggest')) {
+    return {
+      text: `Based on ${strongest.name} at ${strongestRate}% this week, add one tiny ritual immediately after it. Keep it under two minutes so it does not compete with your current streak.`,
+      suggestedActions: [{ id: 'suggest-breath', label: 'Add 2-minute breathing', type: 'suggest_new_ritual', payload: { name: '2-minute breathing', icon: '🧘' } }],
+    };
+  }
+
+  return {
+    text: `${strongest.name} is your strongest ritual at ${strongestRate}% this week. ${weakest.name} is the lowest at ${weakestRate}%, so your best next action is to anchor ${weakest.name} after ${strongest.name}.`,
+    insightCard: {
+      headline: `${strongest.name} is carrying the week.`,
+      body: `${strongest.name}: ${strongestRate}% completion. ${weakest.name}: ${weakestRate}% completion. That gap is the reason for the anchor suggestion.`,
+      bars: strongest.weekly,
+      metric: `${strongestRate}% completion`,
+    },
+    suggestedActions: [{ id: 'weekly-recap', label: 'Generate weekly recap', type: 'generate_weekly_recap' }],
+  };
+}
+
+function CoachScreen({
+  rituals,
+  reduceMotion,
+  onAddRitual,
+}: {
+  rituals: Ritual[];
+  reduceMotion: boolean;
+  onAddRitual: (name: string, icon: string) => void | Promise<void>;
+}) {
+  const [messages, setMessages] = useState<CoachMessage[]>(() => [
+    {
+      id: 'welcome',
+      role: 'assistant',
+      text: rituals.length
+        ? `I know your current rituals and can reason from their tracked metrics. Ask how this week is going.`
+        : 'Create your first ritual, then I can coach from your real data.',
+    },
+  ]);
+  const [composer, setComposer] = useState('');
+  const [loading, setLoading] = useState(false);
+  const listRef = useRef<FlatList<CoachMessage>>(null);
+  const quickReplies = useMemo(() => {
+    const replies = ['How am I doing this week?', 'Suggest a new ritual'];
+    const broken = rituals.some((ritual) => !ritual.doneToday && ritual.streakDays >= 3);
+    return broken ? ['Why did I break my streak?', ...replies] : replies;
+  }, [rituals]);
+
+  useEffect(() => {
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: !reduceMotion }), 60);
+  }, [messages, reduceMotion]);
+
+  const sendMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) {
+      return;
+    }
+    const userMessage: CoachMessage = { id: `user-${Date.now()}`, role: 'user', text: trimmed };
+    const pendingId = `assistant-${Date.now()}`;
+    setComposer('');
+    setLoading(true);
+    setMessages((current) => [...current, userMessage, { id: pendingId, role: 'assistant', text: '', pending: true }]);
+
+    const response = await requestCoachReply(trimmed, [...messages, userMessage], rituals).catch(() => ({
+      text: 'I could not reach the coach endpoint. I can still help once Supabase is configured.',
+    }));
+
+    if (reduceMotion) {
+      setMessages((current) => current.map((item) => (item.id === pendingId ? { ...item, ...response, pending: false } : item)));
+      setLoading(false);
+      return;
+    }
+
+    const words = response.text.split(' ');
+    let index = 0;
+    const tick = () => {
+      index += 1;
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === pendingId
+            ? { ...item, text: words.slice(0, index).join(' '), pending: index < words.length }
+            : item,
+        ),
+      );
+      if (index < words.length) {
+        setTimeout(tick, 28);
+      } else {
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === pendingId
+              ? { ...item, ...response, pending: false }
+              : item,
+          ),
+        );
+        setLoading(false);
+      }
+    };
+    tick();
+  };
+
+  const confirmAction = (action: CoachAction) => {
+    if (action.type === 'suggest_new_ritual') {
+      const name = typeof action.payload?.name === 'string' ? action.payload.name : 'New ritual';
+      const icon = typeof action.payload?.icon === 'string' ? action.payload.icon : '🎯';
+      Promise.resolve(onAddRitual(name, icon)).catch(() => undefined);
+      setMessages((current) => [
+        ...current,
+        { id: `confirm-${Date.now()}`, role: 'assistant', text: `${name} was added after your confirmation.` },
+      ]);
+      return;
+    }
+    setMessages((current) => [
+      ...current,
+      { id: `confirm-${Date.now()}`, role: 'assistant', text: `Confirmed: ${action.label}. This will write to Supabase after you connect the backend mutation.` },
+    ]);
+  };
+
+  return (
+    <View style={styles.coachScreen}>
+      <View style={styles.coachHeader}>
+        <LogoMark size={46} reduceMotion={reduceMotion} palette={habitPalette.focus} />
+        <View style={styles.statusCopy}>
+          <Text style={styles.coachTitle}>Coach</Text>
+          <View style={styles.coachStatusRow}>
+            <View style={styles.coachStatusDot} />
+            <Text style={styles.coachStatus}>Knows your last 30 days</Text>
+          </View>
+        </View>
+      </View>
+
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.coachList}
+        renderItem={({ item }) => (
+          <CoachBubble message={item} reduceMotion={reduceMotion} onConfirmAction={confirmAction} />
+        )}
+      />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickReplyRow}>
+        {quickReplies.map((reply) => (
+          <Pressable key={reply} onPress={() => sendMessage(reply)} style={styles.quickReplyChip}>
+            <Text style={styles.quickReplyText}>{reply}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <View style={styles.composerRow}>
+        <TextInput
+          value={composer}
+          onChangeText={setComposer}
+          placeholder="Ask your coach"
+          placeholderTextColor={colors.inkFaint}
+          style={styles.composerInput}
+          returnKeyType="send"
+          onSubmitEditing={() => sendMessage(composer)}
+        />
+        <PressScale reduceMotion={reduceMotion} onPress={() => sendMessage(composer)} style={styles.sendButton}>
+          <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
+        </PressScale>
+      </View>
+    </View>
+  );
+}
+
+function CoachBubble({
+  message,
+  reduceMotion,
+  onConfirmAction,
+}: {
+  message: CoachMessage;
+  reduceMotion: boolean;
+  onConfirmAction: (action: CoachAction) => void;
+}) {
+  const enter = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    enter.value = reduceMotion ? 1 : withTiming(1, { duration: 200, easing: ReanimatedEasing.out(ReanimatedEasing.cubic) });
+  }, [enter, reduceMotion]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [{ translateY: (1 - enter.value) * 8 }],
+  }));
+
+  const assistant = message.role === 'assistant';
+  return (
+    <Reanimated.View style={[styles.coachMessageRow, assistant ? styles.coachMessageLeft : styles.coachMessageRight, animatedStyle]}>
+      {assistant ? <View style={styles.coachMiniAvatar}><Bot size={15} color={habitPalette.focus.ink} /></View> : null}
+      <View style={[assistant ? styles.aiBubble : styles.userBubble]}>
+        {message.pending && !message.text ? (
+          reduceMotion ? <Text style={styles.aiBubbleText}>Thinking...</Text> : <TypingDots />
+        ) : (
+          <Text style={assistant ? styles.aiBubbleText : styles.userBubbleText}>{message.text}</Text>
+        )}
+        {message.insightCard ? <CoachInsightCardView card={message.insightCard} /> : null}
+        {message.suggestedActions?.map((action) => (
+          <Pressable key={action.id} onPress={() => onConfirmAction(action)} style={styles.actionConfirm}>
+            <Text style={styles.actionConfirmText}>{action.label}? Confirm</Text>
+          </Pressable>
+        ))}
+      </View>
+    </Reanimated.View>
+  );
+}
+
+function TypingDots() {
+  return (
+    <View style={styles.typingDots}>
+      {[0, 1, 2].map((item) => (
+        <View key={item} style={styles.typingDot} />
+      ))}
+    </View>
+  );
+}
+
+function CoachInsightCardView({ card }: { card: CoachInsightCard }) {
+  return (
+    <LinearGradient colors={habitPalette.focus.bg} style={styles.coachInsightCard}>
+      <Text style={styles.coachInsightLabel}>Pattern found</Text>
+      <Text style={styles.coachInsightTitle}>{card.headline}</Text>
+      {card.bars ? (
+        <View style={styles.coachMiniBars}>
+          {card.bars.map((value, index) => (
+            <View key={index} style={[styles.coachMiniBar, { height: value ? 26 : 6, backgroundColor: value ? habitPalette.focus.a : 'rgba(122,121,255,0.18)' }]} />
+          ))}
+        </View>
+      ) : null}
+      <Text style={styles.coachInsightBody}>{card.body}</Text>
+      {card.metric ? <Text style={styles.coachInsightMetric}>{card.metric}</Text> : null}
+    </LinearGradient>
+  );
+}
+
 function InsightsScreen({
   rituals,
   insight,
@@ -1245,7 +2462,7 @@ function InsightsScreen({
   rituals: Ritual[];
   insight: string;
   reduceMotion: boolean;
-  onGenerate: () => void;
+  onGenerate: (text?: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const strongest = bestRitual(rituals);
@@ -1260,10 +2477,13 @@ function InsightsScreen({
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    requestCoachReply('Generate weekly recap', [], rituals).then((response) => {
+      onGenerate(response.insightCard?.body ?? response.text);
+      setLoading(false);
+    }).catch(() => {
       onGenerate();
       setLoading(false);
-    }, reduceMotion ? 120 : 900);
+    });
   };
 
   return (
@@ -1844,6 +3064,7 @@ function BottomNav({
       <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={styles.navCenter}>
         <Plus size={28} color="#FFFFFF" strokeWidth={2.7} />
       </Pressable>
+      <NavItem tab="coach" label="Coach" icon={Bot} activeTab={activeTab} onChange={onChange} />
       <NavItem tab="insights" label="Insights" icon={Sun} activeTab={activeTab} onChange={onChange} />
       <NavItem tab="profile" label="Profile" icon={User} activeTab={activeTab} onChange={onChange} />
     </View>
@@ -1880,7 +3101,7 @@ function AddRitualSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (name: string, icon: string) => void;
+  onAdd: (name: string, icon: string) => void | Promise<void>;
   reduceMotion: boolean;
 }) {
   const [mounted, setMounted] = useState(open);
@@ -1925,13 +3146,13 @@ function AddRitualSheet({
     ]).start(() => setMounted(false));
   }, [open, overlay, reduceMotion, sheetY]);
 
-  const submit = () => {
+  const submit = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
       setHasError(true);
       return;
     }
-    onAdd(trimmed, selectedIcon);
+    await onAdd(trimmed, selectedIcon);
     setName('');
     setSelectedIcon(iconChoices[0]);
     setHasError(false);
@@ -2168,99 +3389,156 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignSelf: 'center',
     width: '100%',
-    justifyContent: 'center',
     paddingHorizontal: 20,
+  },
+  authBackButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 6,
+    ...shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  authHero: {
+    minHeight: 300,
+    marginHorizontal: -20,
+    marginTop: -10,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  authHeroCompact: {
+    minHeight: 210,
+    marginTop: 0,
+  },
+  authWaveHost: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    overflow: 'hidden',
+  },
+  authWaveHostCompact: {
+    top: 76,
+    height: 96,
+  },
+  authWaveSvgWrap: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+  },
+  authHeroContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 28,
+  },
+  logoMark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    elevation: 7,
+  },
+  logoClip: {
+    width: '75%',
+    height: '75%',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  logoWaveLayer: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+  },
+  authWordmark: {
+    fontFamily: fontSerifBold,
+    fontSize: 28,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  authCreateTitle: {
+    fontFamily: fontSerifBold,
+    fontSize: 24,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  authHeroSubtitle: {
+    fontFamily: fontBody,
+    fontSize: 13.5,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginTop: 4,
   },
   authCardWrap: {
     width: '100%',
+    marginTop: -46,
   },
   authCard: {
     borderRadius: 32,
     padding: 22,
   },
-  authLogoWrap: {
-    alignItems: 'center',
-    marginBottom: 12,
+  authCardCreate: {
+    marginTop: 30,
   },
-  authLogo: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.blue1,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.34,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-  authTitle: {
-    fontFamily: fontSerifBold,
-    fontSize: 34,
+  authCardTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 20,
     color: colors.ink,
-    textAlign: 'center',
+    marginBottom: 4,
   },
-  authSubtitle: {
+  authCardSub: {
     fontFamily: fontBody,
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.inkSoft,
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 18,
-  },
-  authModeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    borderRadius: 18,
-    padding: 5,
-    backgroundColor: '#F3F6FB',
-    borderWidth: 1,
-    borderColor: 'rgba(120,140,180,0.16)',
-    marginBottom: 16,
-  },
-  authModeButton: {
-    flex: 1,
-    minHeight: 38,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  authModeButtonActive: {
-    backgroundColor: colors.blue1,
-    shadowColor: colors.blue1,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.24,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  authModeText: {
-    fontFamily: fontBodyBold,
     fontSize: 12.5,
     color: colors.inkSoft,
-  },
-  authModeTextActive: {
-    color: '#FFFFFF',
+    marginBottom: 22,
   },
   authField: {
-    marginBottom: 13,
+    marginBottom: 14,
   },
   authFieldLabel: {
     fontFamily: fontBodyBold,
-    fontSize: 12,
+    fontSize: 11.5,
     color: colors.inkSoft,
-    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 7,
+    paddingLeft: 4,
   },
   authInputShell: {
-    minHeight: 48,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(120,140,180,0.2)',
-    backgroundColor: '#F3F6FB',
-    paddingHorizontal: 13,
+    minHeight: 50,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.16)',
+    backgroundColor: '#F5F8FC',
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 9,
+  },
+  authInputShellFocused: {
+    borderColor: colors.blue1,
+    backgroundColor: '#FFFFFF',
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  authInputShellError: {
+    borderColor: colors.danger,
+    backgroundColor: '#FFF5F5',
   },
   authInput: {
     flex: 1,
@@ -2269,6 +3547,96 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+  },
+  authHelperError: {
+    fontFamily: fontBodySemi,
+    fontSize: 11.5,
+    color: colors.danger,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  authBetweenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    marginBottom: 22,
+    gap: 12,
+  },
+  authInlineLink: {
+    fontFamily: fontBodyBold,
+    fontSize: 12.5,
+    color: colors.blue1,
+  },
+  authCheckLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginTop: 2,
+    marginBottom: 20,
+  },
+  authCheckCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flexShrink: 1,
+  },
+  authCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.inkFaint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  authCheckboxChecked: {
+    borderColor: 'transparent',
+  },
+  authCheckboxRequired: {
+    borderColor: colors.danger,
+  },
+  authCheckboxGradient: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authCheckText: {
+    flex: 1,
+    fontFamily: fontBody,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.inkSoft,
+  },
+  authCheckTextCompact: {
+    flex: 0,
+    fontSize: 12.5,
+    fontFamily: fontBodySemi,
+  },
+  strengthBlock: {
+    marginTop: -6,
+    marginBottom: 18,
+  },
+  strengthRow: {
+    flexDirection: 'row',
+    gap: 5,
+    marginHorizontal: 2,
+  },
+  strengthSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(120,140,180,0.18)',
+  },
+  strengthLabel: {
+    fontFamily: fontBodySemi,
+    fontSize: 11,
+    color: colors.inkFaint,
+    marginTop: 6,
+    marginHorizontal: 2,
   },
   authError: {
     fontFamily: fontBodyBold,
@@ -2287,32 +3655,313 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   authPrimaryButton: {
+    minHeight: 52,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: colors.blue1,
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  authPrimaryText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 13.5,
+    color: '#FFFFFF',
+  },
+  authDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  authDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(120,140,180,0.2)',
+  },
+  authDividerText: {
+    fontFamily: fontBodySemi,
+    fontSize: 11.5,
+    color: colors.inkFaint,
+  },
+  authSocialRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 22,
+  },
+  authSocialButton: {
+    flex: 1,
     minHeight: 48,
-    borderRadius: 15,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.18)',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  authSocialGlyph: {
+    fontFamily: fontBodyExtra,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  authSocialText: {
+    fontFamily: fontBodyBold,
+    fontSize: 13,
+    color: colors.ink,
+  },
+  authFooterLine: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  authFooterMuted: {
+    fontFamily: fontBodySemi,
+    fontSize: 12.5,
+    color: colors.inkSoft,
+  },
+  authFooterLink: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12.5,
+    color: colors.blue1,
+  },
+  coachScreen: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 94,
+  },
+  coachHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 62,
+    marginBottom: 10,
+  },
+  coachTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 18,
+    color: colors.ink,
+  },
+  coachStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  coachStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: habitPalette.food.a,
+  },
+  coachStatus: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: habitPalette.food.ink,
+  },
+  coachList: {
+    paddingTop: 10,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  coachMessageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    maxWidth: '100%',
+  },
+  coachMessageLeft: {
+    alignSelf: 'flex-start',
+    paddingRight: 24,
+  },
+  coachMessageRight: {
+    alignSelf: 'flex-end',
+    justifyContent: 'flex-end',
+    paddingLeft: 54,
+  },
+  coachMiniAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: habitPalette.focus.bg[0],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(122,121,255,0.18)',
+  },
+  aiBubble: {
+    maxWidth: 286,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    ...shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  userBubble: {
+    maxWidth: 286,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 6,
+    backgroundColor: colors.blue1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.26,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  aiBubbleText: {
+    fontFamily: fontBodyRegular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.ink,
+  },
+  userBubbleText: {
+    fontFamily: fontBodyBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#FFFFFF',
+  },
+  coachInsightCard: {
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(122,121,255,0.2)',
+  },
+  coachInsightLabel: {
+    fontFamily: fontBodyExtra,
+    fontSize: 10.5,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: habitPalette.focus.a,
+    marginBottom: 6,
+  },
+  coachInsightTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.ink,
+  },
+  coachMiniBars: {
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  coachMiniBar: {
+    width: 24,
+    borderRadius: 6,
+  },
+  coachInsightBody: {
+    fontFamily: fontBodyRegular,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.inkSoft,
+  },
+  coachInsightMetric: {
+    fontFamily: fontBodyExtra,
+    fontSize: 11.5,
+    color: habitPalette.focus.ink,
+    marginTop: 8,
+  },
+  actionConfirm: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(79,168,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.26)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  actionConfirmText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12,
+    color: colors.blue1,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    gap: 5,
+    paddingVertical: 5,
+  },
+  typingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.inkFaint,
+  },
+  quickReplyRow: {
+    gap: 8,
+    paddingVertical: 8,
+    paddingRight: 18,
+  },
+  quickReplyChip: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickReplyText: {
+    fontFamily: fontBodyBold,
+    fontSize: 12.5,
+    color: colors.ink,
+  },
+  composerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 8,
+  },
+  composerInput: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    paddingHorizontal: 16,
+    fontFamily: fontBodyRegular,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.blue1,
     shadowColor: colors.blue1,
-    shadowOffset: { width: 0, height: 12 },
+    shadowOffset: { width: 0, height: 9 },
     shadowOpacity: 0.32,
-    shadowRadius: 16,
+    shadowRadius: 12,
     elevation: 6,
-  },
-  authPrimaryText: {
-    fontFamily: fontBodyExtra,
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
-  authLinkButton: {
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 6,
-  },
-  authLinkText: {
-    fontFamily: fontBodyBold,
-    fontSize: 13,
-    color: colors.blue1,
   },
   screenHost: {
     alignSelf: 'center',

@@ -21,20 +21,28 @@
     "lucide-react-native": "^1.31.0",
     "react": "19.2.3",
     "react-native": "0.86.2",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
+    "react-native-url-polyfill": "^4.0.0",
+    "react-native-worklets": "0.10.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "supabase": "^2.115.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
+    "android:8082": "expo start --android --port 8082 --clear",
+    "emulator:medium": "emulator -avd Medium_Phone_API_36.1 -gpu swiftshader_indirect -no-snapshot-load -no-snapshot-save -no-audio -no-boot-anim",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "supabase:link": "supabase link --project-ref jzdrckmocagdhmlksnmz",
+    "db:push": "supabase db push",
     "build:android:apk": "eas build -p android --profile preview",
     "build:android:aab": "eas build -p android --profile production"
   },
