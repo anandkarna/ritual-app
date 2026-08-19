@@ -4,12 +4,17 @@
     "appVersionSource": "local"
   },
   "build": {
+    "base": {
+      "node": "22.13.1"
+    },
     "preview": {
+      "extends": "base",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "extends": "base",
       "android": {
         "buildType": "app-bundle"
       }
