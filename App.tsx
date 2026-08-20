@@ -44,8 +44,10 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Reanimated, {
   cancelAnimation,
   Easing as ReanimatedEasing,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSpring,
   withTiming,
@@ -73,11 +75,14 @@ import {
   Lock,
   LogOut,
   Mail,
+  MapPin,
   MessageCircle,
   Moon,
+  Phone,
   Plus,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Sun,
   User,
@@ -95,6 +100,17 @@ type HabitPalette = {
   b: string;
   bg: readonly [string, string];
   ink: string;
+};
+
+type HeroThemeKey = 'morning' | 'afternoon' | 'evening' | 'night';
+
+type HeroTheme = {
+  key: HeroThemeKey;
+  backdrop: readonly [string, string, string];
+  wave: readonly [string, string];
+  accent: string;
+  inkOnHero: string;
+  greeting: string;
 };
 
 type Ritual = {
@@ -147,6 +163,21 @@ type AuthAccount = {
   username: string;
   password: string;
   email: string;
+  name?: string;
+  age?: number;
+  city?: string;
+  mobile?: string;
+  countryCode?: string;
+  profileComplete?: boolean;
+  profileSetupSkipped?: boolean;
+};
+
+type ProfileSetupData = {
+  name: string;
+  age: number;
+  city: string;
+  mobile: string;
+  countryCode: string;
 };
 
 type StoredAuth = {
@@ -188,6 +219,12 @@ type SupabaseProfile = {
   dark_theme?: boolean | null;
   haptics_enabled?: boolean | null;
   push_enabled?: boolean | null;
+  age?: number | null;
+  city?: string | null;
+  mobile?: string | null;
+  country_code?: string | null;
+  profile_complete?: boolean | null;
+  profile_setup_skipped?: boolean | null;
 };
 
 type SupabaseHabit = {
@@ -207,6 +244,10 @@ type SupabaseHabitLog = {
 const STORAGE_KEY = 'flow-liquid-redesign-v4-clean';
 const AUTH_STORAGE_KEY = 'flow-auth-v1';
 const ASK_FLO_POSITION_STORAGE_KEY = 'ask-flo-launcher-position-v1';
+const HERO_THEME_OVERRIDE_STORAGE_KEY = 'rituals-hero-theme-override-v1';
+const DEFAULT_COUNTRY_CODE = '+91';
+const DEFAULT_COUNTRY_FLAG = '🇮🇳';
+const PROFILE_SELECT = 'id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled,age,city,mobile,country_code,profile_complete,profile_setup_skipped';
 const NAV_HEIGHT = 72;
 const NAV_BOTTOM_OFFSET = 16;
 const ASK_FLO_WIDTH = 136;
@@ -218,6 +259,10 @@ const DEFAULT_AUTH_ACCOUNT: AuthAccount = {
   username: 'Pratik',
   password: 'Pratik@16',
   email: 'pratik@rituals.app',
+  name: 'Pratik',
+  countryCode: DEFAULT_COUNTRY_CODE,
+  profileComplete: true,
+  profileSetupSkipped: false,
 };
 const fontBody = 'Inter_500Medium';
 const fontBodyRegular = 'Inter_400Regular';
@@ -264,6 +309,51 @@ const habitPalette: Record<PaletteKey, HabitPalette> = {
   focus: { a: '#7A79FF', b: '#C9C8FF', bg: ['#F1F0FF', '#E4E2FF'], ink: '#5A4FD6' },
   water: { a: '#4FA8FF', b: '#BFE3FF', bg: ['#EDF6FF', '#DCEDFF'], ink: '#1568C9' },
 };
+
+const heroThemes: Record<HeroThemeKey, HeroTheme> = {
+  morning: {
+    key: 'morning',
+    backdrop: ['#FFF6EA', '#FFE3C2', '#FFCB8A'],
+    wave: ['#FFDCA6', '#FFB25B'],
+    accent: '#FF9F43',
+    inkOnHero: '#7A4A12',
+    greeting: 'Good Morning',
+  },
+  afternoon: {
+    key: 'afternoon',
+    backdrop: ['#F5FAFF', '#DCEEFF', '#BFE3FF'],
+    wave: ['#BFE3FF', '#4FA8FF'],
+    accent: '#4FA8FF',
+    inkOnHero: '#1C2B49',
+    greeting: 'Good Afternoon',
+  },
+  evening: {
+    key: 'evening',
+    backdrop: ['#FFF1F5', '#FFD3E0', '#FFAAC0'],
+    wave: ['#FFC8D8', '#FF6A96'],
+    accent: '#FF6A96',
+    inkOnHero: '#7A2947',
+    greeting: 'Good Evening',
+  },
+  night: {
+    key: 'night',
+    backdrop: ['#1B2445', '#232A5C', '#33357A'],
+    wave: ['#8483FF', '#5A57E8'],
+    accent: '#7A79FF',
+    inkOnHero: '#E4E2FF',
+    greeting: 'Good Night',
+  },
+};
+
+const heroThemeOrder: HeroThemeKey[] = ['morning', 'afternoon', 'evening', 'night'];
+
+const nightStars = Array.from({ length: 26 }, (_, index) => ({
+  id: `star-${index}`,
+  left: `${8 + ((index * 37) % 84)}%` as `${number}%`,
+  top: `${10 + ((index * 53) % 68)}%` as `${number}%`,
+  delay: (index * 173) % 2300,
+  opacity: 0.22 + ((index * 11) % 28) / 100,
+}));
 
 const paletteRotation: PaletteKey[] = ['reading', 'food', 'focus', 'water'];
 const iconChoices = ['🧘', '💧', '✍️', '🌙', '🎯'];
@@ -315,6 +405,24 @@ function formatTodayLabel() {
   return `${weekdays[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
+function getHeroThemeKey(date = new Date()): HeroThemeKey {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 11) {
+    return 'morning';
+  }
+  if (hour >= 11 && hour < 17) {
+    return 'afternoon';
+  }
+  if (hour >= 17 && hour < 20) {
+    return 'evening';
+  }
+  return 'night';
+}
+
+function isHeroThemeKey(value: string | null): value is HeroThemeKey {
+  return value === 'morning' || value === 'afternoon' || value === 'evening' || value === 'night';
+}
+
 function normalizeState(parsed: Partial<SavedFlowState>): SavedFlowState {
   const rituals = Array.isArray(parsed.rituals) && parsed.rituals.length ? parsed.rituals : seedRituals;
   return {
@@ -334,12 +442,20 @@ function normalizeState(parsed: Partial<SavedFlowState>): SavedFlowState {
 }
 
 function normalizeAuth(parsed: Partial<StoredAuth> | null): StoredAuth {
-  const account = parsed?.account?.username && parsed.account.password
+  const parsedAccount = parsed?.account;
+  const account = parsedAccount?.username && parsedAccount.password
     ? {
-        id: parsed.account.id,
-        username: parsed.account.username,
-        password: parsed.account.password,
-        email: parsed.account.email || DEFAULT_AUTH_ACCOUNT.email,
+        id: parsedAccount.id,
+        username: parsedAccount.username,
+        password: parsedAccount.password,
+        email: parsedAccount.email || DEFAULT_AUTH_ACCOUNT.email,
+        name: parsedAccount.name,
+        age: parsedAccount.age,
+        city: parsedAccount.city,
+        mobile: parsedAccount.mobile,
+        countryCode: parsedAccount.countryCode || DEFAULT_COUNTRY_CODE,
+        profileComplete: parsedAccount.profileComplete ?? true,
+        profileSetupSkipped: parsedAccount.profileSetupSkipped ?? false,
       }
     : DEFAULT_AUTH_ACCOUNT;
   return {
@@ -359,12 +475,20 @@ function toUsername(value: string) {
 
 function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfile> | null): AuthAccount {
   const email = user.email ?? profile?.email ?? '';
-  const username = profile?.name || profile?.username || user.user_metadata?.full_name || user.user_metadata?.username || email.split('@')[0] || 'Rituals user';
+  const name = profile?.name || user.user_metadata?.full_name || '';
+  const username = name || profile?.username || user.user_metadata?.username || email.split('@')[0] || 'Rituals user';
   return {
     id: user.id,
     username,
     email,
     password: '',
+    name: name || username,
+    age: typeof profile?.age === 'number' ? profile.age : undefined,
+    city: profile?.city ?? undefined,
+    mobile: profile?.mobile ?? undefined,
+    countryCode: profile?.country_code || DEFAULT_COUNTRY_CODE,
+    profileComplete: profile?.profile_complete ?? false,
+    profileSetupSkipped: profile?.profile_setup_skipped ?? false,
   };
 }
 
@@ -375,7 +499,7 @@ async function getProfileForUser(user: SupabaseUser) {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled')
+    .select(PROFILE_SELECT)
     .eq('id', user.id)
     .maybeSingle();
 
@@ -399,11 +523,13 @@ async function upsertProfileForUser(user: SupabaseUser, username: string, name: 
         username,
         name,
         email,
+        profile_complete: false,
+        profile_setup_skipped: false,
         avatar_emoji: '🙂',
       },
       { onConflict: 'id' },
     )
-    .select('id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled')
+    .select(PROFILE_SELECT)
     .single();
 
   if (error) {
@@ -411,6 +537,51 @@ async function upsertProfileForUser(user: SupabaseUser, username: string, name: 
   }
 
   return data as SupabaseProfile;
+}
+
+async function saveProfileSetupForAccount(
+  account: AuthAccount,
+  profile: Partial<ProfileSetupData> & { profileComplete: boolean; profileSetupSkipped: boolean },
+) {
+  const nextAccount: AuthAccount = {
+    ...account,
+    username: profile.name?.trim() || account.name || account.username,
+    name: profile.name?.trim() || account.name || account.username,
+    age: profile.age ?? account.age,
+    city: profile.city?.trim() || account.city,
+    mobile: profile.mobile || account.mobile,
+    countryCode: profile.countryCode || account.countryCode || DEFAULT_COUNTRY_CODE,
+    profileComplete: profile.profileComplete,
+    profileSetupSkipped: profile.profileSetupSkipped,
+  };
+
+  if (!supabase || !account.id) {
+    return nextAccount;
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: account.id,
+        username: account.username,
+        name: nextAccount.name,
+        email: account.email,
+        age: nextAccount.age ?? null,
+        city: nextAccount.city ?? null,
+        mobile: nextAccount.mobile ?? null,
+        country_code: nextAccount.countryCode ?? DEFAULT_COUNTRY_CODE,
+        profile_complete: nextAccount.profileComplete,
+        profile_setup_skipped: nextAccount.profileSetupSkipped,
+      },
+      { onConflict: 'id' },
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return nextAccount;
 }
 
 async function resolveEmailForIdentifier(identifier: string) {
@@ -631,6 +802,8 @@ function AuthenticatedApp() {
   const [ready, setReady] = useState(false);
   const [account, setAccount] = useState(DEFAULT_AUTH_ACCOUNT);
   const [signedIn, setSignedIn] = useState(false);
+  const [profileSetupSource, setProfileSetupSource] = useState<'create' | 'profile' | null>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
@@ -640,9 +813,13 @@ function AuthenticatedApp() {
         const { data } = await supabase.auth.getSession();
         if (data.session?.user) {
           const profile = await getProfileForUser(data.session.user);
+          const nextAccount = authAccountFromUser(data.session.user, profile);
           if (mounted) {
-            setAccount(authAccountFromUser(data.session.user, profile));
+            setAccount(nextAccount);
             setSignedIn(true);
+            if (nextAccount.profileComplete === false && !nextAccount.profileSetupSkipped) {
+              setProfileSetupSource('create');
+            }
           }
         }
         if (mounted) {
@@ -656,6 +833,9 @@ function AuthenticatedApp() {
       if (mounted) {
         setAccount(parsed.account);
         setSignedIn(parsed.signedIn);
+        if (parsed.signedIn && parsed.account.profileComplete === false && !parsed.account.profileSetupSkipped) {
+          setProfileSetupSource('create');
+        }
         setReady(true);
       }
     };
@@ -672,11 +852,13 @@ function AuthenticatedApp() {
       }
       if (event === 'SIGNED_OUT' || !session?.user) {
         setSignedIn(false);
+        setProfileSetupSource(null);
         return;
       }
       const profile = await getProfileForUser(session.user);
+      const nextAccount = authAccountFromUser(session.user, profile);
       if (mounted) {
-        setAccount(authAccountFromUser(session.user, profile));
+        setAccount(nextAccount);
         setSignedIn(true);
       }
     }).data.subscription;
@@ -707,6 +889,45 @@ function AuthenticatedApp() {
     ).catch(() => undefined);
   }, []);
 
+  const finishProfileSetup = useCallback(async (profile: ProfileSetupData) => {
+    const nextAccount = await saveProfileSetupForAccount(account, {
+      ...profile,
+      profileComplete: true,
+      profileSetupSkipped: false,
+    });
+    setAccount(nextAccount);
+    setSignedIn(true);
+    setProfileSetupSource(null);
+    if (!supabase) {
+      saveLocalAuth(nextAccount, true);
+    }
+  }, [account, saveLocalAuth]);
+
+  const skipProfileSetup = useCallback(async () => {
+    const nextAccount = await saveProfileSetupForAccount(account, {
+      profileComplete: false,
+      profileSetupSkipped: true,
+    });
+    setAccount(nextAccount);
+    setSignedIn(true);
+    setProfileSetupSource(null);
+    if (!supabase) {
+      saveLocalAuth(nextAccount, true);
+    }
+  }, [account, saveLocalAuth]);
+
+  const backFromProfileSetup = useCallback(() => {
+    if (profileSetupSource === 'create') {
+      setProfileSetupSource(null);
+      if (supabase) {
+        supabase.auth.signOut().catch(() => undefined);
+      }
+      saveLocalAuth(account, false);
+      return;
+    }
+    setProfileSetupSource(null);
+  }, [account, profileSetupSource, saveLocalAuth]);
+
   if (!ready) {
     return <View style={styles.loadingRoot} />;
   }
@@ -718,15 +939,22 @@ function AuthenticatedApp() {
         onLogin={(nextAccount) => {
           setAccount(nextAccount);
           setSignedIn(true);
+          setProfileSetupSource(null);
           if (!supabase) {
             saveLocalAuth(nextAccount, true);
           }
         }}
         onCreate={(nextAccount) => {
-          setAccount(nextAccount);
+          const createdAccount = {
+            ...nextAccount,
+            profileComplete: nextAccount.profileComplete ?? false,
+            profileSetupSkipped: false,
+          };
+          setAccount(createdAccount);
           setSignedIn(true);
+          setProfileSetupSource('create');
           if (!supabase) {
-            saveLocalAuth(nextAccount, true);
+            saveLocalAuth(createdAccount, true);
           }
         }}
         onResetPassword={(nextAccount) => {
@@ -739,14 +967,29 @@ function AuthenticatedApp() {
     );
   }
 
+  if (profileSetupSource) {
+    return (
+      <ProfileSetupScreen
+        account={account}
+        reduceMotion={reduceMotion}
+        onBack={backFromProfileSetup}
+        onSkip={skipProfileSetup}
+        onComplete={finishProfileSetup}
+      />
+    );
+  }
+
   return (
     <FlowApp
       userId={account.id}
       username={account.username}
+      profileIncomplete={account.profileComplete === false}
+      onOpenProfileSetup={() => setProfileSetupSource('profile')}
       onLogout={() => {
         if (supabase) {
           supabase.auth.signOut().catch(() => undefined);
           setSignedIn(false);
+          setProfileSetupSource(null);
           return;
         }
         saveLocalAuth(account, false);
@@ -1167,6 +1410,354 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function ProfileSetupScreen({
+  account,
+  reduceMotion,
+  onBack,
+  onSkip,
+  onComplete,
+}: {
+  account: AuthAccount;
+  reduceMotion: boolean;
+  onBack: () => void;
+  onSkip: () => Promise<void>;
+  onComplete: (profile: ProfileSetupData) => Promise<void>;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [name, setName] = useState(account.name || (account.profileComplete ? account.username : ''));
+  const [age, setAge] = useState(account.age ? String(account.age) : '');
+  const [city, setCity] = useState(account.city || '');
+  const [mobile, setMobile] = useState((account.mobile || '').replace(/^\+91/, '').replace(/\D/g, '').slice(0, 10));
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const contentMaxWidth = width >= 720 ? 440 : undefined;
+  const parsedAge = Number(age);
+  const nameValid = name.trim().length >= 2;
+  const ageValid = Number.isInteger(parsedAge) && parsedAge >= 13 && parsedAge <= 120;
+  const cityValid = city.trim().length >= 2;
+  const mobileValid = /^\d{10}$/.test(mobile);
+  const formValid = nameValid && ageValid && cityValid && mobileValid;
+  const mobileInvalid = mobile.length > 0 && !mobileValid;
+  const ageInvalid = age.length > 0 && !ageValid;
+
+  const submit = async () => {
+    if (!formValid || submitting) {
+      setError('Complete every required field before continuing.');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      setError('');
+      await onComplete({
+        name: name.trim(),
+        age: parsedAge,
+        city: city.trim(),
+        countryCode: DEFAULT_COUNTRY_CODE,
+        mobile: `${DEFAULT_COUNTRY_CODE}${mobile}`,
+      });
+    } catch (profileError) {
+      setError(profileError instanceof Error ? profileError.message : 'Unable to save profile.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const skip = async () => {
+    if (submitting) {
+      return;
+    }
+    try {
+      setSubmitting(true);
+      setError('');
+      await onSkip();
+    } catch (profileError) {
+      setError(profileError instanceof Error ? profileError.message : 'Unable to skip setup.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="dark" />
+      <LinearGradient colors={['#EEF1F4', colors.page]} style={styles.stage}>
+        <ProfileBubbles reduceMotion={reduceMotion} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.authKeyboard}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.profileSetupScroll,
+              {
+                paddingTop: Math.max(insets.top + 10, 22),
+                paddingBottom: insets.bottom + 34,
+                maxWidth: contentMaxWidth,
+              },
+            ]}
+          >
+            <View style={styles.profileSetupTopBar}>
+              <PressScale reduceMotion={reduceMotion} onPress={onBack} style={styles.profileSetupBackButton}>
+                <ChevronLeft size={18} color={colors.ink} strokeWidth={2.6} />
+              </PressScale>
+              <Pressable accessibilityRole="button" onPress={skip} hitSlop={8}>
+                <Text style={styles.profileSetupSkip}>Skip for now</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.profileProgress}>
+              <LinearGradient colors={[colors.blue1, '#2E8FE8']} style={styles.profileProgressSegment} />
+              <LinearGradient colors={[colors.blue1, '#2E8FE8']} style={styles.profileProgressSegment} />
+              <View style={[styles.profileProgressSegment, styles.profileProgressSegmentEmpty]} />
+            </View>
+
+            <View style={styles.profileSetupHeader}>
+              <LogoMark size={60} reduceMotion={reduceMotion} />
+              <Text style={styles.profileSetupTitle}>Tell us about you</Text>
+              <Text style={styles.profileSetupSubtitle}>A few details so Rituals can personalize your streaks, reminders and coaching.</Text>
+            </View>
+
+            <GradientCard style={styles.profileSetupCard}>
+              <FloatingProfileInput
+                icon={User}
+                label="Full name"
+                value={name}
+                onChangeText={(value) => {
+                  setName(value);
+                  setError('');
+                }}
+                reduceMotion={reduceMotion}
+                returnKeyType="next"
+                error={name.length > 0 && !nameValid}
+                helperText={name.length > 0 && !nameValid ? 'Enter your full name' : undefined}
+              />
+
+              <View style={styles.profileTwoColumn}>
+                <FloatingProfileInput
+                  icon={CalendarDays}
+                  label="Age"
+                  value={age}
+                  onChangeText={(value) => {
+                    setAge(value.replace(/\D/g, '').slice(0, 3));
+                    setError('');
+                  }}
+                  reduceMotion={reduceMotion}
+                  keyboardType="number-pad"
+                  returnKeyType="next"
+                  error={ageInvalid}
+                  helperText={ageInvalid ? 'Age 13-120' : undefined}
+                  style={styles.profileHalfField}
+                />
+                <FloatingProfileInput
+                  icon={MapPin}
+                  label="City"
+                  value={city}
+                  onChangeText={(value) => {
+                    setCity(value);
+                    setError('');
+                  }}
+                  reduceMotion={reduceMotion}
+                  returnKeyType="next"
+                  error={city.length > 0 && !cityValid}
+                  helperText={city.length > 0 && !cityValid ? 'Enter your city' : undefined}
+                  style={styles.profileHalfField}
+                />
+              </View>
+
+              <FloatingProfileInput
+                icon={Phone}
+                label="Mobile number"
+                value={mobile}
+                onChangeText={(value) => {
+                  setMobile(value.replace(/\D/g, '').slice(0, 10));
+                  setError('');
+                }}
+                reduceMotion={reduceMotion}
+                keyboardType="phone-pad"
+                returnKeyType="done"
+                onSubmitEditing={submit}
+                prefix={(
+                  <View style={styles.mobilePrefix}>
+                    <Text style={styles.mobileFlag}>{DEFAULT_COUNTRY_FLAG}</Text>
+                    <Text style={styles.mobileCode}>{DEFAULT_COUNTRY_CODE}</Text>
+                  </View>
+                )}
+                error={mobileInvalid}
+                helperText={mobileInvalid ? 'Enter a valid 10-digit mobile number' : undefined}
+              />
+
+              {error ? <Text style={styles.authError}>{error}</Text> : null}
+
+              <PressScale
+                reduceMotion={reduceMotion}
+                disabled={!formValid || submitting}
+                onPress={submit}
+                style={[styles.authPrimaryButton, styles.profileContinueButton, (!formValid || submitting) && styles.authPrimaryButtonDisabled]}
+              >
+                <Text style={styles.authPrimaryText}>{submitting ? 'Saving' : 'Continue'}</Text>
+                <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.7} />
+              </PressScale>
+
+              <View style={styles.privacyNote}>
+                <View style={styles.privacyIcon}>
+                  <ShieldCheck size={16} color={habitPalette.food.ink} strokeWidth={2.5} />
+                </View>
+                <Text style={styles.privacyText}>Your details are private and only used to personalize reminders - never shown to other users.</Text>
+              </View>
+            </GradientCard>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    </View>
+  );
+}
+
+const profileBubbleSeeds = Array.from({ length: 8 }, (_, index) => ({
+  id: `profile-bubble-${index}`,
+  size: 10 + ((index * 7) % 18),
+  left: `${6 + ((index * 29) % 86)}%` as `${number}%`,
+  delay: (index * 410) % 2800,
+  duration: 5200 + ((index * 390) % 2600),
+  opacity: 0.1 + ((index * 5) % 16) / 100,
+}));
+
+function ProfileBubbles({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <View pointerEvents="none" style={styles.profileBubbleHost}>
+      {profileBubbleSeeds.map((bubble) => (
+        <ProfileBubble key={bubble.id} bubble={bubble} reduceMotion={reduceMotion} />
+      ))}
+    </View>
+  );
+}
+
+function ProfileBubble({
+  bubble,
+  reduceMotion,
+}: {
+  bubble: { size: number; left: `${number}%`; delay: number; duration: number; opacity: number };
+  reduceMotion: boolean;
+}) {
+  const lift = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(lift);
+      lift.value = 0;
+      return;
+    }
+    lift.value = withDelay(
+      bubble.delay,
+      withRepeat(withTiming(1, { duration: bubble.duration, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }), -1, false),
+    );
+    return () => cancelAnimation(lift);
+  }, [bubble.delay, bubble.duration, lift, reduceMotion]);
+
+  const bubbleStyle = useAnimatedStyle(() => ({
+    opacity: reduceMotion ? bubble.opacity : bubble.opacity + lift.value * 0.12,
+    transform: [{ translateY: reduceMotion ? 0 : -220 * lift.value }],
+  }));
+
+  return (
+    <Reanimated.View
+      style={[
+        styles.profileBubble,
+        {
+          width: bubble.size,
+          height: bubble.size,
+          borderRadius: bubble.size / 2,
+          left: bubble.left,
+        },
+        bubbleStyle,
+      ]}
+    />
+  );
+}
+
+function FloatingProfileInput({
+  icon: Icon,
+  label,
+  value,
+  onChangeText,
+  reduceMotion,
+  keyboardType = 'default',
+  returnKeyType,
+  onSubmitEditing,
+  prefix,
+  error,
+  helperText,
+  style,
+}: {
+  icon: IconComponent;
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  reduceMotion: boolean;
+  keyboardType?: 'default' | 'email-address' | 'number-pad' | 'phone-pad';
+  returnKeyType?: 'done' | 'next';
+  onSubmitEditing?: () => void;
+  prefix?: ReactNode;
+  error?: boolean;
+  helperText?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const active = focused || value.length > 0;
+  const progress = useSharedValue(active ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(active ? 1 : 0, {
+      duration: reduceMotion ? 1 : 150,
+      easing: ReanimatedEasing.inOut(ReanimatedEasing.quad),
+    });
+  }, [active, progress, reduceMotion]);
+
+  const labelStyle = useAnimatedStyle(() => ({
+    top: 16 - progress.value * 10,
+    fontSize: 13 - progress.value * 2,
+    color: interpolateColor(progress.value, [0, 1], [colors.inkFaint, focused ? colors.blue1 : colors.inkSoft]),
+  }));
+
+  return (
+    <View style={[styles.floatingField, style]}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => inputRef.current?.focus()}
+        style={[
+          styles.floatingInputShell,
+          focused && styles.authInputShellFocused,
+          error && styles.authInputShellError,
+        ]}
+      >
+        <Icon size={18} color={focused ? colors.blue1 : colors.inkFaint} strokeWidth={2.3} />
+        {prefix}
+        <View style={styles.floatingInputContent}>
+          <Reanimated.Text pointerEvents="none" style={[styles.floatingLabel, labelStyle]}>
+            {label}
+          </Reanimated.Text>
+          <TextInput
+            ref={inputRef}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder=""
+            secureTextEntry={false}
+            autoCorrect={false}
+            keyboardType={keyboardType}
+            returnKeyType={returnKeyType}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onSubmitEditing={onSubmitEditing}
+            blurOnSubmit={returnKeyType === 'done'}
+            style={styles.floatingInput}
+          />
+        </View>
+      </Pressable>
+      {helperText ? <Text style={styles.authHelperError}>{helperText}</Text> : null}
+    </View>
+  );
+}
+
 function getPasswordStrength(value: string) {
   if (!value) {
     return { score: 0, label: 'Use 8+ characters with a number', color: colors.inkFaint };
@@ -1487,11 +2078,13 @@ function PressScale({
   onPress,
   style,
   reduceMotion,
+  disabled = false,
 }: {
   children: ReactNode;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   reduceMotion: boolean;
+  disabled?: boolean;
 }) {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
@@ -1500,11 +2093,18 @@ function PressScale({
 
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
       onPressIn={() => {
+        if (disabled) {
+          return;
+        }
         scale.value = reduceMotion ? 1 : withTiming(0.97, { duration: 120 });
       }}
       onPressOut={() => {
+        if (disabled) {
+          return;
+        }
         scale.value = reduceMotion ? 1 : withSpring(1, { damping: 14, stiffness: 260 });
       }}
     >
@@ -1513,7 +2113,19 @@ function PressScale({
   );
 }
 
-function FlowApp({ userId, username, onLogout }: { userId?: string; username: string; onLogout: () => void }) {
+function FlowApp({
+  userId,
+  username,
+  profileIncomplete,
+  onOpenProfileSetup,
+  onLogout,
+}: {
+  userId?: string;
+  username: string;
+  profileIncomplete: boolean;
+  onOpenProfileSetup: () => void;
+  onLogout: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
@@ -1857,7 +2469,15 @@ function FlowApp({ userId, username, onLogout }: { userId?: string; username: st
             <InsightsScreen rituals={rituals} insight={insight} reduceMotion={reduceMotion} onGenerate={generateInsight} />
           ) : null}
           {activeTab === 'profile' ? (
-            <ProfileScreen rituals={rituals} settings={settings} username={username} onSettingChange={updateSetting} onLogout={onLogout} />
+            <ProfileScreen
+              rituals={rituals}
+              settings={settings}
+              username={username}
+              profileIncomplete={profileIncomplete}
+              onOpenProfileSetup={onOpenProfileSetup}
+              onSettingChange={updateSetting}
+              onLogout={onLogout}
+            />
           ) : null}
         </Animated.View>
 
@@ -1898,6 +2518,8 @@ function TodayScreen({
   onOpenProfile: () => void;
 }) {
   const todayLabel = useMemo(() => formatTodayLabel(), []);
+  const [themeOverride, setThemeOverride] = useState<HeroThemeKey | null>(null);
+  const [activeThemeKey, setActiveThemeKey] = useState<HeroThemeKey>(() => getHeroThemeKey());
   const statusRows = useMemo(
     () =>
       rituals.map((ritual) => ({
@@ -1909,6 +2531,45 @@ function TodayScreen({
       })),
     [rituals],
   );
+
+  useEffect(() => {
+    let mounted = true;
+    AsyncStorage.getItem(HERO_THEME_OVERRIDE_STORAGE_KEY)
+      .then((stored) => {
+        if (!mounted) {
+          return;
+        }
+        if (isHeroThemeKey(stored)) {
+          setThemeOverride(stored);
+          setActiveThemeKey(stored);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (themeOverride) {
+      setActiveThemeKey(themeOverride);
+      return undefined;
+    }
+
+    const syncAutoTheme = () => setActiveThemeKey(getHeroThemeKey());
+    syncAutoTheme();
+    const timer = setInterval(syncAutoTheme, 180000);
+    return () => clearInterval(timer);
+  }, [themeOverride]);
+
+  const selectThemeOverride = (nextTheme: HeroThemeKey | null) => {
+    setThemeOverride(nextTheme);
+    setActiveThemeKey(nextTheme ?? getHeroThemeKey());
+    const write = nextTheme
+      ? AsyncStorage.setItem(HERO_THEME_OVERRIDE_STORAGE_KEY, nextTheme)
+      : AsyncStorage.removeItem(HERO_THEME_OVERRIDE_STORAGE_KEY);
+    write.catch(() => undefined);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
@@ -1926,7 +2587,20 @@ function TodayScreen({
         </View>
       </View>
 
-      <GradientCard style={styles.hero}>
+      <AdaptiveTodayHero
+        doneCount={doneCount}
+        totalActiveRituals={totalActiveRituals}
+        heroPercent={heroPercent}
+        activeThemeKey={activeThemeKey}
+        reduceMotion={reduceMotion}
+      />
+      <TodayThemeSwitcher
+        activeThemeKey={activeThemeKey}
+        themeOverride={themeOverride}
+        onSelect={selectThemeOverride}
+      />
+      {false ? (
+        <GradientCard style={styles.hero}>
         <Text style={styles.heroHead}>
           Today's rituals · <Text style={styles.heroHeadStrong}>{doneCount}/{totalActiveRituals}</Text> done
         </Text>
@@ -1935,7 +2609,8 @@ function TodayScreen({
           <DropletIcon />
           <Text style={styles.goalPillText}>{heroPercent}% of daily rituals</Text>
         </View>
-      </GradientCard>
+        </GradientCard>
+      ) : null}
 
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Today's rituals</Text>
@@ -1974,6 +2649,220 @@ function TodayScreen({
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function AdaptiveTodayHero({
+  doneCount,
+  totalActiveRituals,
+  heroPercent,
+  activeThemeKey,
+  reduceMotion,
+}: {
+  doneCount: number;
+  totalActiveRituals: number;
+  heroPercent: number;
+  activeThemeKey: HeroThemeKey;
+  reduceMotion: boolean;
+}) {
+  const [currentKey, setCurrentKey] = useState<HeroThemeKey>(activeThemeKey);
+  const [previousKey, setPreviousKey] = useState<HeroThemeKey>(activeThemeKey);
+  const fade = useSharedValue(1);
+
+  useEffect(() => {
+    setCurrentKey((current) => {
+      if (current === activeThemeKey) {
+        return current;
+      }
+      setPreviousKey(current);
+      fade.value = 0;
+      fade.value = withTiming(1, {
+        duration: reduceMotion ? 1 : 900,
+        easing: ReanimatedEasing.inOut(ReanimatedEasing.quad),
+      });
+      return activeThemeKey;
+    });
+  }, [activeThemeKey, fade, reduceMotion]);
+
+  const currentTheme = heroThemes[currentKey];
+  const previousTheme = heroThemes[previousKey];
+  const wavePalette = useMemo<HabitPalette>(() => ({
+    a: currentTheme.wave[1],
+    b: currentTheme.wave[0],
+    bg: [currentTheme.backdrop[0], currentTheme.backdrop[2]],
+    ink: currentTheme.accent,
+  }), [currentTheme]);
+  const fadeStyle = useAnimatedStyle(() => ({
+    opacity: fade.value,
+  }));
+  const isNight = currentTheme.key === 'night';
+
+  return (
+    <View style={styles.heroAdaptive}>
+      <StatusBar style={isNight ? 'light' : 'dark'} />
+      <LinearGradient colors={previousTheme.backdrop} style={StyleSheet.absoluteFill} />
+      <Reanimated.View style={[StyleSheet.absoluteFill, fadeStyle]}>
+        <LinearGradient colors={currentTheme.backdrop} style={StyleSheet.absoluteFill} />
+      </Reanimated.View>
+      {isNight ? <NightStarField reduceMotion={reduceMotion} /> : null}
+      <View style={styles.heroContent}>
+        <View style={styles.themeLabelRow}>
+          <View style={[styles.themeDot, { backgroundColor: currentTheme.accent }]} />
+          <Text style={[styles.themeLabel, { color: currentTheme.inkOnHero }]}>{currentTheme.greeting}</Text>
+        </View>
+        <Text style={[styles.heroHead, { color: currentTheme.inkOnHero }]}>
+          Today's rituals · <Text style={[styles.heroHeadStrong, { color: currentTheme.inkOnHero }]}>{doneCount}/{totalActiveRituals}</Text> done
+        </Text>
+        <LiquidRing
+          percent={heroPercent}
+          size={220}
+          variant="hero"
+          palette={wavePalette}
+          reduceMotion={reduceMotion}
+          accent={currentTheme.accent}
+          textColor={currentTheme.inkOnHero}
+          subTextColor={isNight ? 'rgba(228,226,255,0.72)' : colors.inkSoft}
+          trackColor={isNight ? 'rgba(228,226,255,0.18)' : 'rgba(120,140,180,0.18)'}
+        />
+        <View
+          style={[
+            styles.goalPill,
+            {
+              backgroundColor: isNight ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+              borderColor: isNight ? 'rgba(255,255,255,0.18)' : 'rgba(120,140,180,0.14)',
+            },
+          ]}
+        >
+          <DropletIcon color={currentTheme.accent} />
+          <Text style={[styles.goalPillText, { color: currentTheme.inkOnHero }]}>{heroPercent}% of daily rituals</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function TodayThemeSwitcher({
+  activeThemeKey,
+  themeOverride,
+  onSelect,
+}: {
+  activeThemeKey: HeroThemeKey;
+  themeOverride: HeroThemeKey | null;
+  onSelect: (theme: HeroThemeKey | null) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.themeSwitcherRow}
+      style={styles.themeSwitcherScroll}
+    >
+      <ThemeChip
+        label="Auto"
+        accent={heroThemes[activeThemeKey].accent}
+        selected={themeOverride === null}
+        onPress={() => onSelect(null)}
+      />
+      {heroThemeOrder.map((themeKey) => (
+        <ThemeChip
+          key={themeKey}
+          label={heroThemes[themeKey].greeting.replace('Good ', '')}
+          accent={heroThemes[themeKey].accent}
+          selected={themeOverride === themeKey || (themeOverride === null && activeThemeKey === themeKey)}
+          onPress={() => onSelect(themeKey)}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+function ThemeChip({
+  label,
+  accent,
+  selected,
+  onPress,
+}: {
+  label: string;
+  accent: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${label} theme`}
+      onPress={onPress}
+      style={[
+        styles.themeChip,
+        selected && {
+          borderColor: accent,
+          shadowColor: accent,
+          shadowOpacity: 0.28,
+          elevation: 4,
+        },
+      ]}
+    >
+      <View style={[styles.themeChipDot, { backgroundColor: accent }]} />
+      <Text style={styles.themeChipText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function NightStarField({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {nightStars.map((star) => (
+        <NightStar key={star.id} star={star} reduceMotion={reduceMotion} />
+      ))}
+    </View>
+  );
+}
+
+function NightStar({
+  star,
+  reduceMotion,
+}: {
+  star: { left: `${number}%`; top: `${number}%`; delay: number; opacity: number };
+  reduceMotion: boolean;
+}) {
+  const opacity = useSharedValue(star.opacity);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(opacity);
+      opacity.value = star.opacity;
+      return;
+    }
+    opacity.value = withDelay(
+      star.delay,
+      withRepeat(
+        withTiming(Math.min(star.opacity + 0.42, 0.82), {
+          duration: 2500,
+          easing: ReanimatedEasing.inOut(ReanimatedEasing.quad),
+        }),
+        -1,
+        true,
+      ),
+    );
+    return () => cancelAnimation(opacity);
+  }, [opacity, reduceMotion, star.delay, star.opacity]);
+
+  const starStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Reanimated.View
+      style={[
+        styles.nightStar,
+        {
+          left: star.left,
+          top: star.top,
+        },
+        starStyle,
+      ]}
+    />
   );
 }
 
@@ -2579,12 +3468,16 @@ function ProfileScreen({
   rituals,
   settings,
   username,
+  profileIncomplete,
+  onOpenProfileSetup,
   onSettingChange,
   onLogout,
 }: {
   rituals: Ritual[];
   settings: FlowSettings;
   username: string;
+  profileIncomplete: boolean;
+  onOpenProfileSetup: () => void;
   onSettingChange: (key: keyof FlowSettings, value: boolean) => void;
   onLogout: () => void;
 }) {
@@ -2615,6 +3508,21 @@ function ProfileScreen({
         <ProfileStat value={best} label="Best streak" />
         <ProfileStat value={daysActive} label="Days active" />
       </View>
+
+      {profileIncomplete ? (
+        <LinearGradient colors={habitPalette.food.bg} style={styles.profileSetupPrompt}>
+          <View style={styles.profileSetupPromptIcon}>
+            <ShieldCheck size={18} color={habitPalette.food.ink} strokeWidth={2.5} />
+          </View>
+          <View style={styles.profileSetupPromptCopy}>
+            <Text style={styles.profileSetupPromptTitle}>Finish profile setup</Text>
+            <Text style={styles.profileSetupPromptText}>Add your details so reminders and coaching can stay personal.</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={onOpenProfileSetup} style={styles.profileSetupPromptButton}>
+            <Text style={styles.profileSetupPromptButtonText}>Complete</Text>
+          </Pressable>
+        </LinearGradient>
+      ) : null}
 
       <View style={styles.settingsCard}>
         <Text style={styles.settingsLabel}>Notifications</Text>
@@ -2649,6 +3557,10 @@ function LiquidRing({
   palette,
   reduceMotion,
   centerIcon,
+  accent = colors.blue1,
+  trackColor = colors.track,
+  textColor = colors.ink,
+  subTextColor = colors.inkSoft,
 }: {
   percent: number;
   size: number;
@@ -2656,6 +3568,10 @@ function LiquidRing({
   palette: HabitPalette;
   reduceMotion: boolean;
   centerIcon?: string;
+  accent?: string;
+  trackColor?: string;
+  textColor?: string;
+  subTextColor?: string;
 }) {
   const stroke = variant === 'hero' ? 10 : 0;
   const ringId = useRef(`ring${Math.random().toString(36).slice(2)}`).current;
@@ -2725,27 +3641,17 @@ function LiquidRing({
     return () => animation.stop();
   }, [drift, liquidSize, reduceMotion]);
 
-  const marker = useMemo(() => {
-    const angle = (clamp(percent, 0, 100) / 100) * 360 - 90;
-    const rad = (angle * Math.PI) / 180;
-    const center = size / 2;
-    return {
-      left: center + radius * Math.cos(rad) - 7,
-      top: center + radius * Math.sin(rad) - 7,
-    };
-  }, [percent, radius, size]);
-
   return (
     <View style={[styles.ringStack, { width: size, height: size }]}>
       {variant === 'hero' ? (
         <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={StyleSheet.absoluteFill}>
           <Defs>
             <SvgLinearGradient id={`arc-${ringId}`} x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0%" stopColor={colors.blue1} />
-              <Stop offset="100%" stopColor="#8FD3FF" />
+              <Stop offset="0%" stopColor={accent} />
+              <Stop offset="100%" stopColor={palette.b} />
             </SvgLinearGradient>
           </Defs>
-          <Circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.track} strokeWidth={stroke} />
+          <Circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={trackColor} strokeWidth={stroke} />
           <AnimatedCircle
             cx={size / 2}
             cy={size / 2}
@@ -2802,13 +3708,12 @@ function LiquidRing({
       {variant === 'hero' ? (
         <>
           <View style={styles.liquidLabel}>
-            <Text style={styles.liquidNum}>
+            <Text style={[styles.liquidNum, { color: textColor }]}>
               {displayPercent}
-              <Text style={styles.liquidNumSuffix}>%</Text>
+              <Text style={[styles.liquidNumSuffix, { color: subTextColor }]}>%</Text>
             </Text>
-            <Text style={styles.liquidSub}>of daily goal</Text>
+            <Text style={[styles.liquidSub, { color: subTextColor }]}>of daily goal</Text>
           </View>
-          <View style={[styles.markerDot, marker]} />
         </>
       ) : (
         <View style={styles.miniRingIconWrap}>
@@ -3596,12 +4501,12 @@ function SpinIcon({ loading, reduceMotion }: { loading: boolean; reduceMotion: b
   );
 }
 
-function DropletIcon() {
+function DropletIcon({ color = colors.blue1 }: { color?: string }) {
   return (
     <Svg width={16} height={18} viewBox="0 0 16 18">
       <Defs>
         <SvgLinearGradient id="droplet" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0%" stopColor={colors.blue1} />
+          <Stop offset="0%" stopColor={color} />
           <Stop offset="100%" stopColor={colors.blue2} />
         </SvgLinearGradient>
       </Defs>
@@ -3919,6 +4824,10 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 8,
   },
+  authPrimaryButtonDisabled: {
+    opacity: 0.48,
+    shadowOpacity: 0.08,
+  },
   authPrimaryText: {
     fontFamily: fontBodyExtra,
     fontSize: 13.5,
@@ -3989,6 +4898,179 @@ const styles = StyleSheet.create({
     fontFamily: fontBodyExtra,
     fontSize: 12.5,
     color: colors.blue1,
+  },
+  profileSetupScroll: {
+    flexGrow: 1,
+    alignSelf: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  profileSetupTopBar: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  profileSetupBackButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  profileSetupSkip: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12.5,
+    color: colors.blue1,
+  },
+  profileProgress: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 28,
+  },
+  profileProgressSegment: {
+    flex: 1,
+    height: 5,
+    borderRadius: 999,
+  },
+  profileProgressSegmentEmpty: {
+    backgroundColor: 'rgba(120,140,180,0.18)',
+  },
+  profileSetupHeader: {
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 18,
+  },
+  profileSetupTitle: {
+    fontFamily: fontSerifBold,
+    fontSize: 26,
+    lineHeight: 31,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  profileSetupSubtitle: {
+    fontFamily: fontBody,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginTop: 7,
+    maxWidth: 350,
+  },
+  profileSetupCard: {
+    borderRadius: 32,
+    padding: 22,
+  },
+  profileTwoColumn: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  profileHalfField: {
+    flex: 1,
+    minWidth: 0,
+  },
+  floatingField: {
+    marginBottom: 14,
+  },
+  floatingInputShell: {
+    minHeight: 56,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.16)',
+    backgroundColor: '#F5F8FC',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  floatingInputContent: {
+    flex: 1,
+    minWidth: 0,
+    height: 48,
+    justifyContent: 'flex-end',
+  },
+  floatingLabel: {
+    position: 'absolute',
+    left: 0,
+    fontFamily: fontBodyExtra,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  floatingInput: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fontBodyRegular,
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.ink,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === 'ios' ? 7 : 3,
+  },
+  mobilePrefix: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingRight: 2,
+  },
+  mobileFlag: {
+    fontSize: 14,
+  },
+  mobileCode: {
+    fontFamily: fontBodyBold,
+    fontSize: 13,
+    color: colors.ink,
+  },
+  profileContinueButton: {
+    marginTop: 2,
+  },
+  privacyNote: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    marginTop: 16,
+    borderRadius: 18,
+    backgroundColor: 'rgba(51,203,161,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(51,203,161,0.22)',
+    padding: 12,
+  },
+  privacyIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(51,203,161,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  privacyText: {
+    flex: 1,
+    fontFamily: fontBodySemi,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: habitPalette.food.ink,
+  },
+  profileBubbleHost: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  profileBubble: {
+    position: 'absolute',
+    bottom: -36,
+    backgroundColor: colors.blue1,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   coachScreen: {
     flex: 1,
@@ -4342,6 +5424,83 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     marginBottom: 22,
   },
+  heroAdaptive: {
+    minHeight: 300,
+    borderRadius: 32,
+    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    marginBottom: 0,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    ...shadow,
+  },
+  heroContent: {
+    position: 'relative',
+    zIndex: 1,
+    alignItems: 'center',
+  },
+  themeLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 4,
+  },
+  themeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  themeLabel: {
+    fontFamily: fontBodyExtra,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.45,
+  },
+  nightStar: {
+    position: 'absolute',
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  themeSwitcherScroll: {
+    marginHorizontal: -20,
+    marginBottom: 2,
+  },
+  themeSwitcherRow: {
+    paddingTop: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  themeChip: {
+    minHeight: 30,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.14)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    shadowColor: '#4060A0',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 3,
+  },
+  themeChipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  themeChipText: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.ink,
+  },
   heroHead: {
     textAlign: 'center',
     fontFamily: fontBody,
@@ -4411,20 +5570,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.inkSoft,
     marginTop: 4,
-  },
-  markerDot: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 3,
-    borderColor: colors.blue1,
-    shadowColor: colors.blue1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.55,
-    shadowRadius: 8,
-    elevation: 4,
   },
   goalPill: {
     alignSelf: 'center',
@@ -4879,6 +6024,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 18,
+  },
+  profileSetupPrompt: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(51,203,161,0.22)',
+    padding: 14,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    ...shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  profileSetupPromptIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: 'rgba(51,203,161,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileSetupPromptCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  profileSetupPromptTitle: {
+    fontFamily: fontBodyExtra,
+    fontSize: 13,
+    color: colors.ink,
+  },
+  profileSetupPromptText: {
+    fontFamily: fontBody,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    marginTop: 2,
+  },
+  profileSetupPromptButton: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(51,203,161,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  profileSetupPromptButtonText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 11.5,
+    color: habitPalette.food.ink,
   },
   pstat: {
     flex: 1,

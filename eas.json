@@ -9,12 +9,14 @@
     },
     "preview": {
       "extends": "base",
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "extends": "base",
+      "environment": "production",
       "android": {
         "buildType": "app-bundle"
       }
