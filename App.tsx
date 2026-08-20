@@ -287,6 +287,7 @@ function bestRitual(rituals: Ritual[]) {
   return [...rituals].sort((a, b) => percentFromWeekly(b.weekly) - percentFromWeekly(a.weekly))[0];
 }
 
+//hii 
 function weakestRitual(rituals: Ritual[]) {
   return [...rituals].sort((a, b) => percentFromWeekly(a.weekly) - percentFromWeekly(b.weekly))[0];
 }
