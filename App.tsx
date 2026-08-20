@@ -32,6 +32,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+import {
+  GestureHandlerRootView,
+  PanGestureHandler,
+  State,
+  type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Reanimated, {
   cancelAnimation,
@@ -78,7 +86,7 @@ import {
 import React, { ComponentType, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient, processLock, User as SupabaseUser } from '@supabase/supabase-js';
 
-type TabKey = 'today' | 'progress' | 'coach' | 'insights' | 'profile';
+type TabKey = 'today' | 'progress' | 'insights' | 'profile';
 type PaletteKey = 'reading' | 'food' | 'focus' | 'water';
 type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
 
@@ -198,6 +206,14 @@ type SupabaseHabitLog = {
 
 const STORAGE_KEY = 'flow-liquid-redesign-v4-clean';
 const AUTH_STORAGE_KEY = 'flow-auth-v1';
+const ASK_FLO_POSITION_STORAGE_KEY = 'ask-flo-launcher-position-v1';
+const NAV_HEIGHT = 72;
+const NAV_BOTTOM_OFFSET = 16;
+const ASK_FLO_WIDTH = 136;
+const ASK_FLO_HEIGHT = 48;
+const ASK_FLO_EDGE_PADDING = 16;
+const ASK_FLO_NAV_GAP = 22;
+const ASK_FLO_TAP_THRESHOLD = 6;
 const DEFAULT_AUTH_ACCOUNT: AuthAccount = {
   username: 'Pratik',
   password: 'Pratik@16',
@@ -601,9 +617,11 @@ function AppRoot() {
   }
 
   return (
-    <SafeAreaProvider>
-      <AuthenticatedApp />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <AuthenticatedApp />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -1426,12 +1444,41 @@ function TermsAgreement({
   );
 }
 
-function SocialButton({ label, reduceMotion, onPress }: { label: string; reduceMotion: boolean; onPress: () => void }) {
+function SocialButton({ label, reduceMotion, onPress }: { label: 'Google' | 'Apple'; reduceMotion: boolean; onPress: () => void }) {
+  const isApple = label === 'Apple';
   return (
-    <PressScale reduceMotion={reduceMotion} onPress={onPress} style={styles.authSocialButton}>
-      <Text style={styles.authSocialGlyph}>{label === 'Google' ? 'G' : 'A'}</Text>
-      <Text style={styles.authSocialText}>{label}</Text>
+    <PressScale
+      reduceMotion={reduceMotion}
+      onPress={onPress}
+      style={[styles.authSocialButton, isApple ? styles.authSocialButtonApple : styles.authSocialButtonGoogle]}
+    >
+      {isApple ? <AppleGlyph /> : <GoogleGMark />}
+      <Text style={[styles.authSocialText, isApple ? styles.authSocialTextApple : styles.authSocialTextGoogle]}>
+        Continue with {label}
+      </Text>
     </PressScale>
+  );
+}
+
+function GoogleGMark() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 18 18" accessibilityLabel="Google">
+      <Path d="M17.64 9.204c0-.638-.057-1.252-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616Z" fill="#4285F4" />
+      <Path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.583-5.036-3.71H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853" />
+      <Path d="M3.964 10.712A5.41 5.41 0 0 1 3.682 9c0-.594.102-1.17.282-1.712V4.956H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.044l3.007-2.332Z" fill="#FBBC05" />
+      <Path d="M9 3.58c1.322 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.956l3.007 2.332C4.672 5.161 6.656 3.58 9 3.58Z" fill="#EA4335" />
+    </Svg>
+  );
+}
+
+function AppleGlyph() {
+  return (
+    <Svg width={16} height={18} viewBox="0 0 16 18" accessibilityLabel="Apple">
+      <Path
+        d="M12.94 9.55c-.02-1.86 1.52-2.75 1.59-2.8-.87-1.27-2.21-1.44-2.68-1.46-1.14-.12-2.23.67-2.81.67-.58 0-1.47-.65-2.42-.63-1.25.02-2.4.73-3.04 1.85-1.3 2.25-.33 5.58.93 7.4.62.9 1.36 1.91 2.33 1.87.93-.04 1.29-.6 2.41-.6 1.12 0 1.44.6 2.42.58 1-.02 1.64-.91 2.25-1.81.71-1.04 1-2.04 1.02-2.09-.02-.01-1.98-.76-2-2.98ZM11.1 4.09c.51-.62.86-1.49.76-2.35-.74.03-1.64.49-2.17 1.11-.48.56-.9 1.45-.79 2.31.83.06 1.68-.42 2.2-1.07Z"
+        fill="#FFFFFF"
+      />
+    </Svg>
   );
 }
 
@@ -1443,7 +1490,7 @@ function PressScale({
 }: {
   children: ReactNode;
   onPress?: () => void;
-  style?: object;
+  style?: StyleProp<ViewStyle>;
   reduceMotion: boolean;
 }) {
   const scale = useSharedValue(1);
@@ -1478,6 +1525,7 @@ function FlowApp({ userId, username, onLogout }: { userId?: string; username: st
   const [insight, setInsight] = useState(defaultState.insight);
   const [selectedRitualId, setSelectedRitualId] = useState(defaultState.rituals[0]?.id ?? '');
   const [addOpen, setAddOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [particles, setParticles] = useState<BurstParticle[]>([]);
   const [newRitualId, setNewRitualId] = useState<string | null>(null);
@@ -1805,9 +1853,6 @@ function FlowApp({ userId, username, onLogout }: { userId?: string; username: st
               onSelectRitual={setSelectedRitualId}
             />
           ) : null}
-          {activeTab === 'coach' ? (
-            <CoachScreen rituals={rituals} reduceMotion={reduceMotion} onAddRitual={addRitual} />
-          ) : null}
           {activeTab === 'insights' ? (
             <InsightsScreen rituals={rituals} insight={insight} reduceMotion={reduceMotion} onGenerate={generateInsight} />
           ) : null}
@@ -1817,6 +1862,8 @@ function FlowApp({ userId, username, onLogout }: { userId?: string; username: st
         </Animated.View>
 
         <BottomNav activeTab={activeTab} bottomInset={insets.bottom} onChange={setActiveTab} onAdd={() => setAddOpen(true)} />
+        <AskFloLauncher userId={userId} bottomInset={insets.bottom} topInset={insets.top} reduceMotion={reduceMotion} onOpen={() => setCoachOpen(true)} />
+        <CoachChatSheet open={coachOpen} rituals={rituals} reduceMotion={reduceMotion} onClose={() => setCoachOpen(false)} onAddRitual={addRitual} />
         <AddRitualSheet open={addOpen} onClose={() => setAddOpen(false)} onAdd={addRitual} reduceMotion={reduceMotion} />
         <Toast toast={toast} bottomInset={insets.bottom} reduceMotion={reduceMotion} onDone={clearToast} />
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -2243,10 +2290,12 @@ function CoachScreen({
   rituals,
   reduceMotion,
   onAddRitual,
+  sheet = false,
 }: {
   rituals: Ritual[];
   reduceMotion: boolean;
   onAddRitual: (name: string, icon: string) => void | Promise<void>;
+  sheet?: boolean;
 }) {
   const [messages, setMessages] = useState<CoachMessage[]>(() => [
     {
@@ -2336,7 +2385,7 @@ function CoachScreen({
   };
 
   return (
-    <View style={styles.coachScreen}>
+    <View style={[styles.coachScreen, sheet && styles.coachScreenSheet]}>
       <View style={styles.coachHeader}>
         <LogoMark size={46} reduceMotion={reduceMotion} palette={habitPalette.focus} />
         <View style={styles.statusCopy}>
@@ -3047,6 +3096,208 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (value: boolean
   );
 }
 
+function AskFloLauncher({
+  userId,
+  bottomInset,
+  topInset,
+  reduceMotion,
+  onOpen,
+}: {
+  userId?: string;
+  bottomInset: number;
+  topInset: number;
+  reduceMotion: boolean;
+  onOpen: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const dragOrigin = useRef({ x: 0, y: 0 });
+  const blockNextPress = useRef(false);
+  const openedFromGesture = useRef(false);
+  const blockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const positionKey = useMemo(
+    () => `${ASK_FLO_POSITION_STORAGE_KEY}:${userId ?? 'local'}`,
+    [userId],
+  );
+  const bounds = useMemo(() => {
+    const minX = ASK_FLO_EDGE_PADDING;
+    const minY = Math.max(topInset + ASK_FLO_EDGE_PADDING, ASK_FLO_EDGE_PADDING);
+    const maxX = Math.max(minX, width - ASK_FLO_WIDTH - ASK_FLO_EDGE_PADDING);
+    const navTop = height - bottomInset - NAV_BOTTOM_OFFSET - NAV_HEIGHT;
+    const maxY = Math.max(minY, navTop - ASK_FLO_NAV_GAP - ASK_FLO_HEIGHT);
+    return { minX, minY, maxX, maxY };
+  }, [bottomInset, height, topInset, width]);
+
+  const snapToCorner = useCallback((rawX: number, rawY: number) => {
+    const clampedX = clamp(rawX, bounds.minX, bounds.maxX);
+    const clampedY = clamp(rawY, bounds.minY, bounds.maxY);
+    const finalX = clampedX <= (bounds.minX + bounds.maxX) / 2 ? bounds.minX : bounds.maxX;
+    const finalY = clampedY <= (bounds.minY + bounds.maxY) / 2 ? bounds.minY : bounds.maxY;
+    return { x: finalX, y: finalY };
+  }, [bounds.maxX, bounds.maxY, bounds.minX, bounds.minY]);
+
+  useEffect(() => {
+    let mounted = true;
+    const defaultPosition = snapToCorner(bounds.maxX, bounds.maxY);
+
+    AsyncStorage.getItem(positionKey)
+      .then((stored) => {
+        if (!mounted) {
+          return;
+        }
+        if (!stored) {
+          translateX.value = defaultPosition.x;
+          translateY.value = defaultPosition.y;
+          return;
+        }
+        const parsed = JSON.parse(stored) as Partial<{ x: number; y: number }>;
+        const savedX = typeof parsed.x === 'number' ? parsed.x : defaultPosition.x;
+        const savedY = typeof parsed.y === 'number' ? parsed.y : defaultPosition.y;
+        const next = snapToCorner(savedX, savedY);
+        translateX.value = next.x;
+        translateY.value = next.y;
+      })
+      .catch(() => {
+        if (mounted) {
+          translateX.value = defaultPosition.x;
+          translateY.value = defaultPosition.y;
+        }
+      });
+
+    return () => {
+      mounted = false;
+      if (blockTimer.current) {
+        clearTimeout(blockTimer.current);
+      }
+    };
+  }, [bounds.maxX, bounds.maxY, positionKey, snapToCorner, translateX, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
+  }));
+
+  const handleGestureEvent = (event: PanGestureHandlerGestureEvent) => {
+    const { translationX, translationY } = event.nativeEvent;
+    translateX.value = clamp(dragOrigin.current.x + translationX, bounds.minX, bounds.maxX);
+    translateY.value = clamp(dragOrigin.current.y + translationY, bounds.minY, bounds.maxY);
+  };
+
+  const handleGestureStateChange = (event: PanGestureHandlerStateChangeEvent) => {
+    const { state, translationX, translationY } = event.nativeEvent;
+    if (state === State.BEGAN) {
+      dragOrigin.current = { x: translateX.value, y: translateY.value };
+      return;
+    }
+    const completed = state === State.END;
+    if (!completed && state !== State.CANCELLED && state !== State.FAILED) {
+      return;
+    }
+
+    const moved = Math.max(Math.abs(translationX), Math.abs(translationY));
+    const next = snapToCorner(dragOrigin.current.x + translationX, dragOrigin.current.y + translationY);
+    translateX.value = reduceMotion ? next.x : withSpring(next.x, { damping: 17, stiffness: 170 });
+    translateY.value = reduceMotion ? next.y : withSpring(next.y, { damping: 17, stiffness: 170 });
+
+    if (moved < ASK_FLO_TAP_THRESHOLD) {
+      if (!completed) {
+        return;
+      }
+      openedFromGesture.current = true;
+      onOpen();
+      if (blockTimer.current) {
+        clearTimeout(blockTimer.current);
+      }
+      blockTimer.current = setTimeout(() => {
+        openedFromGesture.current = false;
+      }, 260);
+      return;
+    }
+
+    if (completed) {
+      blockNextPress.current = true;
+      if (blockTimer.current) {
+        clearTimeout(blockTimer.current);
+      }
+      blockTimer.current = setTimeout(() => {
+        blockNextPress.current = false;
+      }, 260);
+      AsyncStorage.setItem(positionKey, JSON.stringify(next)).catch(() => undefined);
+    }
+  };
+
+  const handlePress = () => {
+    if (openedFromGesture.current) {
+      openedFromGesture.current = false;
+      return;
+    }
+    if (blockNextPress.current) {
+      blockNextPress.current = false;
+      return;
+    }
+    onOpen();
+  };
+
+  return (
+    <PanGestureHandler
+      minDist={0}
+      onGestureEvent={handleGestureEvent}
+      onHandlerStateChange={handleGestureStateChange}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Reanimated.View style={[styles.askFloLauncher, animatedStyle]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ask Flo" onPress={handlePress} style={styles.askFloPressable}>
+          <View style={styles.askFloLabel}>
+            <Text style={styles.askFloLabelText}>Ask Flo ✨</Text>
+          </View>
+          <LinearGradient colors={[colors.blue1, '#2E8FE8']} start={{ x: 0.15, y: 0 }} end={{ x: 1, y: 1 }} style={styles.askFloButton}>
+            <MessageCircle size={21} color="#FFFFFF" strokeWidth={2.4} />
+          </LinearGradient>
+        </Pressable>
+      </Reanimated.View>
+    </PanGestureHandler>
+  );
+}
+
+function CoachChatSheet({
+  open,
+  rituals,
+  reduceMotion,
+  onClose,
+  onAddRitual,
+}: {
+  open: boolean;
+  rituals: Ritual[];
+  reduceMotion: boolean;
+  onClose: () => void;
+  onAddRitual: (name: string, icon: string) => void | Promise<void>;
+}) {
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+
+  return (
+    <Modal transparent visible={open} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.coachSheetRoot}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close Ask Flo" onPress={onClose} style={styles.coachSheetOverlay} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.coachSheetKeyboard}>
+          <View
+            style={[
+              styles.coachSheet,
+              {
+                maxHeight: Math.max(420, height - insets.top - 28),
+                paddingBottom: Math.max(insets.bottom, 12) + 12,
+              },
+            ]}
+          >
+            <View style={styles.modalHandle} />
+            <CoachScreen rituals={rituals} reduceMotion={reduceMotion} onAddRitual={onAddRitual} sheet />
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
 function BottomNav({
   activeTab,
   bottomInset,
@@ -3059,13 +3310,12 @@ function BottomNav({
   onAdd: () => void;
 }) {
   return (
-    <View style={[styles.navPill, { bottom: bottomInset + 16 }]}>
+    <View style={[styles.navPill, { bottom: bottomInset + NAV_BOTTOM_OFFSET }]}>
       <NavItem tab="today" label="Today" icon={Home} activeTab={activeTab} onChange={onChange} />
       <NavItem tab="progress" label="Progress" icon={BarChart3} activeTab={activeTab} onChange={onChange} />
       <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={styles.navCenter}>
         <Plus size={28} color="#FFFFFF" strokeWidth={2.7} />
       </Pressable>
-      <NavItem tab="coach" label="Coach" icon={Bot} activeTab={activeTab} onChange={onChange} />
       <NavItem tab="insights" label="Insights" icon={Sun} activeTab={activeTab} onChange={onChange} />
       <NavItem tab="profile" label="Profile" icon={User} activeTab={activeTab} onChange={onChange} />
     </View>
@@ -3692,31 +3942,37 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
   },
   authSocialRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 10,
     marginBottom: 22,
   },
   authSocialButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 18,
+    width: '100%',
+    height: 48,
+    borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: 'rgba(120,140,180,0.18)',
-    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  authSocialGlyph: {
-    fontFamily: fontBodyExtra,
-    fontSize: 15,
-    color: colors.ink,
+  authSocialButtonGoogle: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DADCE0',
+  },
+  authSocialButtonApple: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
   },
   authSocialText: {
     fontFamily: fontBodyBold,
-    fontSize: 13,
-    color: colors.ink,
+    fontSize: 13.5,
+  },
+  authSocialTextGoogle: {
+    color: '#3C4043',
+  },
+  authSocialTextApple: {
+    color: '#FFFFFF',
   },
   authFooterLine: {
     flexDirection: 'row',
@@ -3739,6 +3995,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: 94,
+  },
+  coachScreenSheet: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 4,
+  },
+  coachSheetRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  coachSheetOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(20,30,50,0.34)',
+  },
+  coachSheetKeyboard: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  coachSheet: {
+    height: '82%',
+    backgroundColor: colors.page,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    shadowColor: '#1E325A',
+    shadowOffset: { width: 0, height: -18 },
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    elevation: 24,
   },
   coachHeader: {
     flexDirection: 'row',
@@ -4675,11 +4965,64 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  askFloLauncher: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: ASK_FLO_WIDTH,
+    height: ASK_FLO_HEIGHT,
+    zIndex: 55,
+    elevation: 14,
+  },
+  askFloPressable: {
+    width: ASK_FLO_WIDTH,
+    height: ASK_FLO_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  askFloLabel: {
+    height: 40,
+    minWidth: ASK_FLO_WIDTH - ASK_FLO_HEIGHT + 2,
+    paddingLeft: 16,
+    paddingRight: 12,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    backgroundColor: '#1C2B49',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1C2B49',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  askFloLabelText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  askFloButton: {
+    width: ASK_FLO_HEIGHT,
+    height: ASK_FLO_HEIGHT,
+    borderRadius: ASK_FLO_HEIGHT / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    marginLeft: -1,
+    shadowColor: '#2E8FE8',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.42,
+    shadowRadius: 14,
+    elevation: 11,
+  },
   navPill: {
     position: 'absolute',
     left: 14,
     right: 14,
-    height: 72,
+    height: NAV_HEIGHT,
     borderRadius: 32,
     backgroundColor: 'rgba(255,255,255,0.88)',
     borderWidth: 1,
