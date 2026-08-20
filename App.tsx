@@ -14,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   AccessibilityInfo,
   Animated,
@@ -92,7 +93,23 @@ import React, { ComponentType, ReactNode, useCallback, useEffect, useMemo, useRe
 import { createClient, processLock, User as SupabaseUser } from '@supabase/supabase-js';
 
 type TabKey = 'today' | 'progress' | 'insights' | 'profile';
-type PaletteKey = 'reading' | 'food' | 'focus' | 'water';
+type PaletteKey =
+  | 'water'
+  | 'running'
+  | 'gym'
+  | 'meditate'
+  | 'reading'
+  | 'focus'
+  | 'work'
+  | 'food'
+  | 'sleep'
+  | 'journal'
+  | 'creative'
+  | 'music'
+  | 'cycling'
+  | 'skincare'
+  | 'noPhone';
+type GoalUnit = 'liters' | 'minutes' | 'pages' | 'reps' | 'glasses';
 type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
 
 type HabitPalette = {
@@ -118,12 +135,25 @@ type Ritual = {
   name: string;
   icon: string;
   paletteKey: PaletteKey;
+  goalAmount?: number;
+  goalUnit?: GoalUnit;
+  reminderTime?: string;
+  completedAt?: number | null;
   streakDays: number;
   bestStreakDays: number;
   doneToday: boolean;
   weekly: number[];
   heat: number[];
   createdAt: number;
+};
+
+type CreateRitualInput = {
+  name: string;
+  icon: string;
+  paletteKey: PaletteKey;
+  goalAmount?: number;
+  goalUnit?: GoalUnit;
+  reminderTime?: string;
 };
 
 type FlowSettings = {
@@ -139,6 +169,7 @@ type SavedFlowState = {
   baseDoneFromOtherHabits: number;
   settings: FlowSettings;
   insight: string;
+  stateDate?: string;
 };
 
 type ToastState = {
@@ -168,6 +199,8 @@ type AuthAccount = {
   city?: string;
   mobile?: string;
   countryCode?: string;
+  gender?: string;
+  habitFocus?: string;
   profileComplete?: boolean;
   profileSetupSkipped?: boolean;
 };
@@ -178,6 +211,8 @@ type ProfileSetupData = {
   city: string;
   mobile: string;
   countryCode: string;
+  gender: string;
+  habitFocus: string;
 };
 
 type StoredAuth = {
@@ -223,6 +258,8 @@ type SupabaseProfile = {
   city?: string | null;
   mobile?: string | null;
   country_code?: string | null;
+  gender?: string | null;
+  habit_focus?: string | null;
   profile_complete?: boolean | null;
   profile_setup_skipped?: boolean | null;
 };
@@ -233,21 +270,28 @@ type SupabaseHabit = {
   icon: string;
   color: string | null;
   palette_key?: PaletteKey | null;
+  goal_amount?: number | null;
+  goal_unit?: GoalUnit | null;
+  reminder_time?: string | null;
   created_at: string | null;
 };
 
 type SupabaseHabitLog = {
   habit_id: string;
   log_date: string;
+  completed_at?: string | null;
 };
+
+type ReminderScheduleRecord = Record<string, { notificationId: string; reminderTime: string; body: string }>;
 
 const STORAGE_KEY = 'flow-liquid-redesign-v4-clean';
 const AUTH_STORAGE_KEY = 'flow-auth-v1';
 const ASK_FLO_POSITION_STORAGE_KEY = 'ask-flo-launcher-position-v1';
 const HERO_THEME_OVERRIDE_STORAGE_KEY = 'rituals-hero-theme-override-v1';
+const REMINDER_NOTIFICATION_STORAGE_KEY = 'ritual-reminder-notifications-v1';
 const DEFAULT_COUNTRY_CODE = '+91';
 const DEFAULT_COUNTRY_FLAG = '🇮🇳';
-const PROFILE_SELECT = 'id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled,age,city,mobile,country_code,profile_complete,profile_setup_skipped';
+const PROFILE_SELECT = 'id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled,age,city,mobile,country_code,gender,habit_focus,profile_complete,profile_setup_skipped';
 const NAV_HEIGHT = 72;
 const NAV_BOTTOM_OFFSET = 16;
 const ASK_FLO_WIDTH = 136;
@@ -303,11 +347,50 @@ const supabase = supabaseUrl && supabaseAnonKey
     })
   : null;
 
+function isExpoGoRuntime() {
+  return Constants.appOwnership === 'expo';
+}
+
+function getNotificationsModule() {
+  if (Platform.OS === 'web' || isExpoGoRuntime()) {
+    return null;
+  }
+  try {
+    // Dynamic require keeps Expo Go from initializing expo-notifications on Android.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('expo-notifications') as typeof import('expo-notifications');
+  } catch {
+    return null;
+  }
+}
+
+const notificationsModule = getNotificationsModule();
+
+notificationsModule?.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
 const habitPalette: Record<PaletteKey, HabitPalette> = {
-  reading: { a: '#FFB25B', b: '#FFDCA6', bg: ['#FFF6EA', '#FFEBD1'], ink: '#B4600A' },
-  food: { a: '#33CBA1', b: '#A9F0DA', bg: ['#EBFBF5', '#D8F7EA'], ink: '#0E8F6A' },
-  focus: { a: '#7A79FF', b: '#C9C8FF', bg: ['#F1F0FF', '#E4E2FF'], ink: '#5A4FD6' },
   water: { a: '#4FA8FF', b: '#BFE3FF', bg: ['#EDF6FF', '#DCEDFF'], ink: '#1568C9' },
+  running: { a: '#FF6A6A', b: '#FFD3D3', bg: ['#FFF1F1', '#FFE2E2'], ink: '#C33A3A' },
+  gym: { a: '#5D6B82', b: '#D3DAE6', bg: ['#F3F6FA', '#E6EBF3'], ink: '#3B4658' },
+  meditate: { a: '#7A79FF', b: '#C9C8FF', bg: ['#F1F0FF', '#E4E2FF'], ink: '#5A4FD6' },
+  reading: { a: '#FFB25B', b: '#FFDCA6', bg: ['#FFF6EA', '#FFEBD1'], ink: '#B4600A' },
+  focus: { a: '#7A79FF', b: '#C9C8FF', bg: ['#F1F0FF', '#E4E2FF'], ink: '#5A4FD6' },
+  work: { a: '#2F80ED', b: '#B8D7FF', bg: ['#EEF6FF', '#DDEBFF'], ink: '#1E5EAF' },
+  food: { a: '#33CBA1', b: '#A9F0DA', bg: ['#EBFBF5', '#D8F7EA'], ink: '#0E8F6A' },
+  sleep: { a: '#8E8CF5', b: '#D9D8FF', bg: ['#F4F3FF', '#E8E7FF'], ink: '#5D59D6' },
+  journal: { a: '#F0A332', b: '#FFE1A8', bg: ['#FFF8EA', '#FFEFD0'], ink: '#A56611' },
+  creative: { a: '#FF6A96', b: '#FFC8D8', bg: ['#FFF1F5', '#FFE0E8'], ink: '#B53762' },
+  music: { a: '#9B5CFF', b: '#DCC7FF', bg: ['#F6F0FF', '#EBDEFF'], ink: '#7036D0' },
+  cycling: { a: '#1EB980', b: '#B5F0D6', bg: ['#ECFBF4', '#DDF7EC'], ink: '#087B55' },
+  skincare: { a: '#FF9FBC', b: '#FFE0EA', bg: ['#FFF3F7', '#FFE8F0'], ink: '#B64C70' },
+  noPhone: { a: '#3A4459', b: '#C8D0DE', bg: ['#F2F4F8', '#E4E9F1'], ink: '#263044' },
 };
 
 const heroThemes: Record<HeroThemeKey, HeroTheme> = {
@@ -355,9 +438,40 @@ const nightStars = Array.from({ length: 26 }, (_, index) => ({
   opacity: 0.22 + ((index * 11) % 28) / 100,
 }));
 
-const paletteRotation: PaletteKey[] = ['reading', 'food', 'focus', 'water'];
-const iconChoices = ['🧘', '💧', '✍️', '🌙', '🎯'];
+const paletteRotation: PaletteKey[] = ['water', 'running', 'gym', 'meditate', 'reading', 'focus', 'work', 'food', 'sleep', 'journal', 'creative', 'music', 'cycling', 'skincare', 'noPhone'];
+const ritualIconLibrary: Array<{ key: PaletteKey; icon: string; label: string }> = [
+  { key: 'water', icon: '💧', label: 'Water' },
+  { key: 'running', icon: '🏃', label: 'Running' },
+  { key: 'gym', icon: '🏋️', label: 'Gym' },
+  { key: 'meditate', icon: '🧘', label: 'Meditate' },
+  { key: 'reading', icon: '📖', label: 'Reading' },
+  { key: 'focus', icon: '🎯', label: 'Focus' },
+  { key: 'work', icon: '💼', label: 'Work' },
+  { key: 'food', icon: '🥗', label: 'Food' },
+  { key: 'sleep', icon: '🌙', label: 'Sleep' },
+  { key: 'journal', icon: '✍️', label: 'Journal' },
+  { key: 'creative', icon: '🎨', label: 'Creative' },
+  { key: 'music', icon: '🎵', label: 'Music' },
+  { key: 'cycling', icon: '🚴', label: 'Cycling' },
+  { key: 'skincare', icon: '🧴', label: 'Skincare' },
+  { key: 'noPhone', icon: '📵', label: 'No Phone' },
+];
+const goalUnits: GoalUnit[] = ['liters', 'minutes', 'pages', 'reps', 'glasses'];
+const reminderPresets = [
+  { label: '8:00 AM', value: '08:00' },
+  { label: '1:00 PM', value: '13:00' },
+  { label: '8:00 PM', value: '20:00' },
+];
+const ritualTemplates: Array<{ label: string; name: string; iconKey: PaletteKey; goalAmount: number; goalUnit: GoalUnit; reminderTime: string }> = [
+  { label: 'Water 4L', name: 'Water 4L', iconKey: 'water', goalAmount: 4, goalUnit: 'liters', reminderTime: '20:00' },
+  { label: 'Run 30min', name: 'Run 30min', iconKey: 'running', goalAmount: 30, goalUnit: 'minutes', reminderTime: '08:00' },
+  { label: 'Meditate 10min', name: 'Meditate 10min', iconKey: 'meditate', goalAmount: 10, goalUnit: 'minutes', reminderTime: '08:00' },
+  { label: 'Read 20 pages', name: 'Read 20 pages', iconKey: 'reading', goalAmount: 20, goalUnit: 'pages', reminderTime: '20:00' },
+  { label: 'Gym session', name: 'Gym session', iconKey: 'gym', goalAmount: 45, goalUnit: 'minutes', reminderTime: '13:00' },
+];
 const weekLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const genderOptions = ['Female', 'Male', 'Other'];
+const habitFocusOptions = ['Reading', 'Fitness', 'Mindfulness', 'Sleep', 'Hydration', 'Food'];
 
 const seedSettings: FlowSettings = {
   pushNotifications: true,
@@ -398,11 +512,58 @@ function weakestRitual(rituals: Ritual[]) {
   return [...rituals].sort((a, b) => percentFromWeekly(a.weekly) - percentFromWeekly(b.weekly))[0];
 }
 
-function formatTodayLabel() {
-  const date = new Date();
+function formatTodayLabel(date = new Date()) {
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${weekdays[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+function formatClockTime(date = new Date()) {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function nowHour(date = new Date()) {
+  return date.getHours() + date.getMinutes() / 60;
+}
+
+function fmtHour(hourValue: number) {
+  const hh = Math.floor(hourValue);
+  const mm = Math.round((hourValue - hh) * 60);
+  const period = hh >= 12 ? 'PM' : 'AM';
+  const h12 = hh % 12 || 12;
+  return `${h12}:${String(mm).padStart(2, '0')} ${period}`;
+}
+
+function hourToPercent(hourValue: number) {
+  const start = 6;
+  const end = 24;
+  const adjusted = hourValue < start ? hourValue + 24 : hourValue;
+  const clamped = clamp(adjusted, start, end);
+  return ((clamped - start) / (end - start)) * 100;
+}
+
+function hourFloatFromIso(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return nowHour(date);
+}
+
+function useMinuteNow() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const sync = () => setNow(new Date());
+    sync();
+    const timer = setInterval(sync, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return now;
 }
 
 function getHeroThemeKey(date = new Date()): HeroThemeKey {
@@ -423,21 +584,104 @@ function isHeroThemeKey(value: string | null): value is HeroThemeKey {
   return value === 'morning' || value === 'afternoon' || value === 'evening' || value === 'night';
 }
 
+function isGoalUnit(value: unknown): value is GoalUnit {
+  return value === 'liters' || value === 'minutes' || value === 'pages' || value === 'reps' || value === 'glasses';
+}
+
+function isPaletteKey(value: unknown): value is PaletteKey {
+  return typeof value === 'string' && value in habitPalette;
+}
+
+function iconOptionForKey(key: PaletteKey) {
+  return ritualIconLibrary.find((option) => option.key === key) ?? ritualIconLibrary[0];
+}
+
+function iconOptionForEmoji(icon: string) {
+  return ritualIconLibrary.find((option) => option.icon === icon) ?? ritualIconLibrary[0];
+}
+
+function goalLabel(amount?: number, unit?: GoalUnit) {
+  if (!amount || !unit) {
+    return '';
+  }
+  const formattedAmount = Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(2)));
+  const unitLabel = unit === 'liters' ? 'L' : unit === 'minutes' ? 'min' : unit;
+  return unit === 'liters' || unit === 'minutes' ? `${formattedAmount}${unitLabel}` : `${formattedAmount} ${unitLabel}`;
+}
+
+function formatReminderTime(value?: string) {
+  if (!value) {
+    return '';
+  }
+  const [hourRaw, minuteRaw] = value.split(':');
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return value;
+  }
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
+function timeValueFromDate(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function dateFromReminderTime(value: string) {
+  const [hourRaw, minuteRaw] = value.split(':');
+  const date = new Date();
+  date.setHours(Number(hourRaw) || 8, Number(minuteRaw) || 0, 0, 0);
+  return date;
+}
+
+function nextReminderDate(value: string) {
+  const date = dateFromReminderTime(value);
+  if (date.getTime() <= Date.now()) {
+    date.setDate(date.getDate() + 1);
+  }
+  return date;
+}
+
+function ritualReminderBody(ritual: Pick<Ritual, 'name' | 'goalAmount' | 'goalUnit'>) {
+  const name = ritual.name.trim() || 'your ritual';
+  const goal = goalLabel(ritual.goalAmount, ritual.goalUnit);
+  return goal ? `Still time for your ${goal} today?` : `Still time to check in with ${name} today?`;
+}
+
+function ritualReminderExplanation(name: string, goalAmount: number | undefined, goalUnit: GoalUnit | undefined, reminderTime?: string) {
+  const displayName = name.trim() || 'this ritual';
+  if (!reminderTime) {
+    return 'Pick a reminder time if you want Rituals to nudge you when this ritual is still open.';
+  }
+  const goal = goalLabel(goalAmount, goalUnit);
+  const body = goal ? `Still time for your ${goal} today?` : `Still time to check in with ${displayName} today?`;
+  return `If ${displayName} isn't marked done by ${formatReminderTime(reminderTime)}, Rituals will send a gentle nudge - "${body}"`;
+}
+
 function normalizeState(parsed: Partial<SavedFlowState>): SavedFlowState {
   const rituals = Array.isArray(parsed.rituals) && parsed.rituals.length ? parsed.rituals : seedRituals;
+  const today = todayIso();
+  const dateDistance = daysBetweenIso(parsed.stateDate, today);
   return {
     rituals: rituals.map((ritual, index) => ({
       ...ritual,
       paletteKey: ritual.paletteKey && habitPalette[ritual.paletteKey] ? ritual.paletteKey : paletteRotation[index % paletteRotation.length],
-      weekly: Array.isArray(ritual.weekly) && ritual.weekly.length === 7 ? ritual.weekly : [0, 0, 0, 0, 0, 0, ritual.doneToday ? 1 : 0],
-      heat: Array.isArray(ritual.heat) && ritual.heat.length === 30 ? ritual.heat : Array.from({ length: 30 }, (_, i) => (i === 29 && ritual.doneToday ? 1 : 0)),
+      goalAmount: typeof ritual.goalAmount === 'number' && Number.isFinite(ritual.goalAmount) ? ritual.goalAmount : undefined,
+      goalUnit: isGoalUnit(ritual.goalUnit) ? ritual.goalUnit : undefined,
+      reminderTime: typeof ritual.reminderTime === 'string' && ritual.reminderTime ? ritual.reminderTime : undefined,
+      doneToday: dateDistance > 0 ? false : ritual.doneToday,
+      completedAt: dateDistance > 0 ? null : typeof ritual.completedAt === 'number' && Number.isFinite(ritual.completedAt) ? ritual.completedAt : null,
+      weekly: shiftBinarySeries(Array.isArray(ritual.weekly) && ritual.weekly.length === 7 ? ritual.weekly : [0, 0, 0, 0, 0, 0, ritual.doneToday ? 1 : 0], dateDistance),
+      heat: shiftBinarySeries(Array.isArray(ritual.heat) && ritual.heat.length === 30 ? ritual.heat : Array.from({ length: 30 }, (_, i) => (i === 29 && ritual.doneToday ? 1 : 0)), dateDistance),
       bestStreakDays: ritual.bestStreakDays ?? ritual.streakDays ?? 0,
       createdAt: ritual.createdAt ?? Date.now() + index,
     })),
     totalActiveRituals: parsed.totalActiveRituals ?? rituals.length,
-    baseDoneFromOtherHabits: parsed.baseDoneFromOtherHabits ?? 0,
+    baseDoneFromOtherHabits: dateDistance > 0 ? 0 : parsed.baseDoneFromOtherHabits ?? 0,
     settings: { ...seedSettings, ...(parsed.settings ?? {}) },
     insight: parsed.insight ?? '',
+    stateDate: today,
   };
 }
 
@@ -454,6 +698,8 @@ function normalizeAuth(parsed: Partial<StoredAuth> | null): StoredAuth {
         city: parsedAccount.city,
         mobile: parsedAccount.mobile,
         countryCode: parsedAccount.countryCode || DEFAULT_COUNTRY_CODE,
+        gender: parsedAccount.gender,
+        habitFocus: parsedAccount.habitFocus,
         profileComplete: parsedAccount.profileComplete ?? true,
         profileSetupSkipped: parsedAccount.profileSetupSkipped ?? false,
       }
@@ -487,6 +733,8 @@ function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfi
     city: profile?.city ?? undefined,
     mobile: profile?.mobile ?? undefined,
     countryCode: profile?.country_code || DEFAULT_COUNTRY_CODE,
+    gender: profile?.gender ?? undefined,
+    habitFocus: profile?.habit_focus ?? undefined,
     profileComplete: profile?.profile_complete ?? false,
     profileSetupSkipped: profile?.profile_setup_skipped ?? false,
   };
@@ -551,6 +799,8 @@ async function saveProfileSetupForAccount(
     city: profile.city?.trim() || account.city,
     mobile: profile.mobile || account.mobile,
     countryCode: profile.countryCode || account.countryCode || DEFAULT_COUNTRY_CODE,
+    gender: profile.gender?.trim() || account.gender,
+    habitFocus: profile.habitFocus?.trim() || account.habitFocus,
     profileComplete: profile.profileComplete,
     profileSetupSkipped: profile.profileSetupSkipped,
   };
@@ -571,6 +821,8 @@ async function saveProfileSetupForAccount(
         city: nextAccount.city ?? null,
         mobile: nextAccount.mobile ?? null,
         country_code: nextAccount.countryCode ?? DEFAULT_COUNTRY_CODE,
+        gender: nextAccount.gender ?? null,
+        habit_focus: nextAccount.habitFocus ?? null,
         profile_complete: nextAccount.profileComplete,
         profile_setup_skipped: nextAccount.profileSetupSkipped,
       },
@@ -606,6 +858,126 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function daysBetweenIso(from?: string, to = todayIso()) {
+  if (!from) {
+    return 0;
+  }
+  const start = new Date(`${from}T00:00:00.000Z`).getTime();
+  const end = new Date(`${to}T00:00:00.000Z`).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+function shiftBinarySeries(values: number[], distance: number) {
+  if (distance <= 0) {
+    return values;
+  }
+  if (distance >= values.length) {
+    return Array.from({ length: values.length }, () => 0);
+  }
+  return [...values.slice(distance), ...Array.from({ length: distance }, () => 0)];
+}
+
+async function ensureReminderPermissions() {
+  const notifications = notificationsModule;
+  if (!notifications) {
+    return false;
+  }
+  if (Platform.OS === 'android') {
+    await notifications.setNotificationChannelAsync('ritual-reminders', {
+      name: 'Ritual reminders',
+      importance: notifications.AndroidImportance.DEFAULT,
+    });
+  }
+  const existing = await notifications.getPermissionsAsync();
+  if (existing.status === 'granted') {
+    return true;
+  }
+  const requested = await notifications.requestPermissionsAsync();
+  return requested.status === 'granted';
+}
+
+async function readReminderScheduleRecord(): Promise<ReminderScheduleRecord> {
+  const stored = await AsyncStorage.getItem(REMINDER_NOTIFICATION_STORAGE_KEY);
+  if (!stored) {
+    return {};
+  }
+  try {
+    return JSON.parse(stored) as ReminderScheduleRecord;
+  } catch {
+    return {};
+  }
+}
+
+async function cancelReminderNotification(record?: { notificationId: string }) {
+  if (!record?.notificationId) {
+    return;
+  }
+  await notificationsModule?.cancelScheduledNotificationAsync(record.notificationId).catch(() => undefined);
+}
+
+async function syncRitualReminderNotifications(rituals: Ritual[], enabled: boolean) {
+  const notifications = notificationsModule;
+  if (!notifications) {
+    return;
+  }
+
+  const stored = await readReminderScheduleRecord();
+  const next: ReminderScheduleRecord = {};
+  const byId = new Map(rituals.map((ritual) => [ritual.id, ritual]));
+  const schedulableRituals = rituals.filter((ritual) => ritual.reminderTime && !ritual.doneToday);
+
+  if (!enabled) {
+    await Promise.all(Object.values(stored).map(cancelReminderNotification));
+    await AsyncStorage.removeItem(REMINDER_NOTIFICATION_STORAGE_KEY);
+    return;
+  }
+
+  for (const [ritualId, record] of Object.entries(stored)) {
+    const ritual = byId.get(ritualId);
+    const body = ritual ? ritualReminderBody(ritual) : '';
+    if (!ritual || !ritual.reminderTime || ritual.doneToday || record.reminderTime !== ritual.reminderTime || record.body !== body) {
+      await cancelReminderNotification(record);
+    } else {
+      next[ritualId] = record;
+    }
+  }
+
+  if (!schedulableRituals.some((ritual) => !next[ritual.id])) {
+    await AsyncStorage.setItem(REMINDER_NOTIFICATION_STORAGE_KEY, JSON.stringify(next));
+    return;
+  }
+
+  const hasPermission = await ensureReminderPermissions();
+  if (!hasPermission) {
+    return;
+  }
+
+  for (const ritual of schedulableRituals) {
+    if (!ritual.reminderTime || next[ritual.id]) {
+      continue;
+    }
+    const body = ritualReminderBody(ritual);
+    const notificationId = await notifications.scheduleNotificationAsync({
+      content: {
+        title: `${ritual.name} reminder`,
+        body,
+        data: { ritualId: ritual.id, screen: 'today' },
+      },
+      trigger: {
+        type: notifications.SchedulableTriggerInputTypes.DATE,
+        date: nextReminderDate(ritual.reminderTime),
+        channelId: 'ritual-reminders',
+      },
+    });
+    next[ritual.id] = { notificationId, reminderTime: ritual.reminderTime, body };
+  }
+
+  await AsyncStorage.setItem(REMINDER_NOTIFICATION_STORAGE_KEY, JSON.stringify(next));
+}
+
 function isoDaysBack(count: number) {
   return Array.from({ length: count }, (_, index) => {
     const date = new Date();
@@ -615,11 +987,17 @@ function isoDaysBack(count: number) {
 }
 
 function paletteToDbColor(paletteKey: PaletteKey) {
-  return paletteKey === 'reading' ? 'amber' : paletteKey === 'food' ? 'sky' : paletteKey === 'focus' ? 'violet' : 'sky';
+  if (paletteKey === 'reading' || paletteKey === 'journal') return 'amber';
+  if (paletteKey === 'focus' || paletteKey === 'meditate' || paletteKey === 'sleep' || paletteKey === 'music') return 'violet';
+  if (paletteKey === 'running' || paletteKey === 'creative' || paletteKey === 'skincare') return 'coral';
+  if (paletteKey === 'gym' || paletteKey === 'work' || paletteKey === 'noPhone') return 'dark';
+  return 'sky';
 }
 
 function dbColorToPalette(color: string | null | undefined, fallbackIndex: number): PaletteKey {
-  if (color === 'amber' || color === 'coral') return 'reading';
+  if (color === 'amber') return 'reading';
+  if (color === 'coral') return 'running';
+  if (color === 'dark') return 'gym';
   if (color === 'violet') return 'focus';
   if (color === 'sky') return 'water';
   return paletteRotation[fallbackIndex % paletteRotation.length];
@@ -654,24 +1032,30 @@ function ritualsFromSupabaseRows(habits: SupabaseHabit[], logs: SupabaseHabitLog
   const days30 = isoDaysBack(30);
   const days7 = days30.slice(-7);
   const today = todayIso();
-  const logsByHabit = new Map<string, Set<string>>();
+  const logsByHabit = new Map<string, SupabaseHabitLog[]>();
 
   logs.forEach((log) => {
-    const dates = logsByHabit.get(log.habit_id) ?? new Set<string>();
-    dates.add(log.log_date);
-    logsByHabit.set(log.habit_id, dates);
+    const rows = logsByHabit.get(log.habit_id) ?? [];
+    rows.push(log);
+    logsByHabit.set(log.habit_id, rows);
   });
 
   return habits.map((habit, index): Ritual => {
-    const dates = logsByHabit.get(habit.id) ?? new Set<string>();
+    const habitLogs = logsByHabit.get(habit.id) ?? [];
+    const dates = new Set(habitLogs.map((log) => log.log_date));
+    const todayLog = habitLogs.find((log) => log.log_date === today);
     const heat = days30.map((day) => (dates.has(day) ? 1 : 0));
     const weekly = days7.map((day) => (dates.has(day) ? 1 : 0));
-    const paletteKey = habit.palette_key && habitPalette[habit.palette_key] ? habit.palette_key : dbColorToPalette(habit.color, index);
+    const paletteKey = isPaletteKey(habit.palette_key) ? habit.palette_key : dbColorToPalette(habit.color, index);
     return {
       id: habit.id,
       name: habit.name,
       icon: habit.icon,
       paletteKey,
+      goalAmount: typeof habit.goal_amount === 'number' && Number.isFinite(habit.goal_amount) ? habit.goal_amount : undefined,
+      goalUnit: isGoalUnit(habit.goal_unit) ? habit.goal_unit : undefined,
+      reminderTime: typeof habit.reminder_time === 'string' ? habit.reminder_time.slice(0, 5) : undefined,
+      completedAt: dates.has(today) ? hourFloatFromIso(todayLog?.completed_at) : null,
       streakDays: currentStreakFromHeat(heat),
       bestStreakDays: longestStreakFromHeat(heat),
       doneToday: dates.has(today),
@@ -690,7 +1074,7 @@ async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowS
   const since = isoDaysBack(30)[0];
   const { data: habits, error: habitsError } = await supabase
     .from('habits')
-    .select('id,name,icon,color,palette_key,created_at')
+    .select('id,name,icon,color,palette_key,goal_amount,goal_unit,reminder_time,created_at')
     .eq('user_id', userId)
     .eq('is_archived', false)
     .order('created_at', { ascending: true });
@@ -701,7 +1085,7 @@ async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowS
 
   const { data: logs, error: logsError } = await supabase
     .from('habit_logs')
-    .select('habit_id,log_date')
+    .select('habit_id,log_date,completed_at')
     .eq('user_id', userId)
     .gte('log_date', since);
 
@@ -983,6 +1367,8 @@ function AuthenticatedApp() {
     <FlowApp
       userId={account.id}
       username={account.username}
+      email={account.email}
+      habitFocus={account.habitFocus}
       profileIncomplete={account.profileComplete === false}
       onOpenProfileSetup={() => setProfileSetupSource('profile')}
       onLogout={() => {
@@ -1227,7 +1613,7 @@ function AuthGate({
     <View style={styles.root}>
       <StatusBar style="dark" />
       <LinearGradient colors={['#EEF1F4', colors.page]} style={styles.stage}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.authKeyboard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.authKeyboard}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -1429,6 +1815,8 @@ function ProfileSetupScreen({
   const [age, setAge] = useState(account.age ? String(account.age) : '');
   const [city, setCity] = useState(account.city || '');
   const [mobile, setMobile] = useState((account.mobile || '').replace(/^\+91/, '').replace(/\D/g, '').slice(0, 10));
+  const [gender, setGender] = useState(account.gender || '');
+  const [habitFocus, setHabitFocus] = useState(account.habitFocus || '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const contentMaxWidth = width >= 720 ? 440 : undefined;
@@ -1437,7 +1825,9 @@ function ProfileSetupScreen({
   const ageValid = Number.isInteger(parsedAge) && parsedAge >= 13 && parsedAge <= 120;
   const cityValid = city.trim().length >= 2;
   const mobileValid = /^\d{10}$/.test(mobile);
-  const formValid = nameValid && ageValid && cityValid && mobileValid;
+  const genderValid = genderOptions.includes(gender);
+  const habitFocusValid = habitFocusOptions.includes(habitFocus);
+  const formValid = nameValid && ageValid && cityValid && mobileValid && genderValid && habitFocusValid;
   const mobileInvalid = mobile.length > 0 && !mobileValid;
   const ageInvalid = age.length > 0 && !ageValid;
 
@@ -1455,6 +1845,8 @@ function ProfileSetupScreen({
         city: city.trim(),
         countryCode: DEFAULT_COUNTRY_CODE,
         mobile: `${DEFAULT_COUNTRY_CODE}${mobile}`,
+        gender,
+        habitFocus,
       });
     } catch (profileError) {
       setError(profileError instanceof Error ? profileError.message : 'Unable to save profile.');
@@ -1483,7 +1875,7 @@ function ProfileSetupScreen({
       <StatusBar style="dark" />
       <LinearGradient colors={['#EEF1F4', colors.page]} style={styles.stage}>
         <ProfileBubbles reduceMotion={reduceMotion} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.authKeyboard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.authKeyboard}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -1584,6 +1976,26 @@ function ProfileSetupScreen({
                 )}
                 error={mobileInvalid}
                 helperText={mobileInvalid ? 'Enter a valid 10-digit mobile number' : undefined}
+              />
+
+              <ProfileChoiceGroup
+                label="Gender"
+                options={genderOptions}
+                value={gender}
+                onChange={(value) => {
+                  setGender(value);
+                  setError('');
+                }}
+              />
+
+              <ProfileChoiceGroup
+                label="Habit to improve"
+                options={habitFocusOptions}
+                value={habitFocus}
+                onChange={(value) => {
+                  setHabitFocus(value);
+                  setError('');
+                }}
               />
 
               {error ? <Text style={styles.authError}>{error}</Text> : null}
@@ -1758,6 +2170,41 @@ function FloatingProfileInput({
   );
 }
 
+function ProfileChoiceGroup({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={styles.profileChoiceGroup}>
+      <Text style={styles.profileChoiceLabel}>{label}</Text>
+      <View style={styles.profileChoiceRow}>
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => onChange(option)}
+              style={[styles.profileChoiceChip, selected && styles.profileChoiceChipSelected]}
+            >
+              <View style={[styles.profileChoiceDot, selected && styles.profileChoiceDotSelected]} />
+              <Text style={[styles.profileChoiceText, selected && styles.profileChoiceTextSelected]}>{option}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function getPasswordStrength(value: string) {
   if (!value) {
     return { score: 0, label: 'Use 8+ characters with a number', color: colors.inkFaint };
@@ -1836,7 +2283,17 @@ function AnimatedWaveBackground({ reduceMotion, compact }: { reduceMotion: boole
   );
 }
 
-function LogoMark({ size, reduceMotion, palette = habitPalette.water }: { size: number; reduceMotion: boolean; palette?: HabitPalette }) {
+function LogoMark({
+  size,
+  reduceMotion,
+  palette = habitPalette.water,
+  style,
+}: {
+  size: number;
+  reduceMotion: boolean;
+  palette?: HabitPalette;
+  style?: StyleProp<ViewStyle>;
+}) {
   const drift = useSharedValue(0);
 
   useEffect(() => {
@@ -1854,7 +2311,7 @@ function LogoMark({ size, reduceMotion, palette = habitPalette.water }: { size: 
   }));
 
   return (
-    <View style={[styles.logoMark, { width: size, height: size, borderRadius: size / 2 }]}>
+    <View style={[styles.logoMark, { width: size, height: size, borderRadius: size / 2 }, style]}>
       <Svg width={size} height={size} viewBox="0 0 64 64" style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgLinearGradient id="logoArcGrad" x1="0" y1="0" x2="1" y2="1">
@@ -2116,12 +2573,16 @@ function PressScale({
 function FlowApp({
   userId,
   username,
+  email,
+  habitFocus,
   profileIncomplete,
   onOpenProfileSetup,
   onLogout,
 }: {
   userId?: string;
   username: string;
+  email?: string;
+  habitFocus?: string;
   profileIncomplete: boolean;
   onOpenProfileSetup: () => void;
   onLogout: () => void;
@@ -2213,9 +2674,17 @@ function FlowApp({
       baseDoneFromOtherHabits,
       settings,
       insight,
+      stateDate: todayIso(),
     };
     AsyncStorage.setItem(storageKey, JSON.stringify(state)).catch(() => undefined);
   }, [baseDoneFromOtherHabits, hydrated, insight, rituals, settings, storageKey, totalActiveRituals]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    syncRitualReminderNotifications(rituals, settings.pushNotifications).catch(() => undefined);
+  }, [hydrated, rituals, settings.pushNotifications]);
 
   const doneCount = useMemo(
     () => baseDoneFromOtherHabits + rituals.filter((ritual) => ritual.doneToday).length,
@@ -2275,6 +2744,7 @@ function FlowApp({
       return;
     }
     const nextDoneToday = !target.doneToday;
+    const completionHour = nextDoneToday ? nowHour() : null;
     let toastMessage = '';
     let burstPalette: HabitPalette | null = null;
 
@@ -2292,6 +2762,7 @@ function FlowApp({
         const next = {
           ...ritual,
           doneToday,
+          completedAt: completionHour,
           streakDays,
           bestStreakDays: Math.max(ritual.bestStreakDays, streakDays),
           weekly,
@@ -2337,8 +2808,13 @@ function FlowApp({
     }
   };
 
-  const addRitual = async (name: string, icon: string) => {
-    const paletteKey = paletteRotation[rituals.length % paletteRotation.length];
+  const addRitual = async (input: CreateRitualInput) => {
+    const name = input.name.trim();
+    const icon = input.icon;
+    const paletteKey = input.paletteKey;
+    const goalAmount = typeof input.goalAmount === 'number' && Number.isFinite(input.goalAmount) ? input.goalAmount : undefined;
+    const goalUnit = goalAmount && input.goalUnit ? input.goalUnit : undefined;
+    const reminderTime = input.reminderTime;
     let id = `ritual-${Date.now()}`;
     let createdAt = Date.now();
 
@@ -2351,6 +2827,9 @@ function FlowApp({
           icon,
           color: paletteToDbColor(paletteKey),
           palette_key: paletteKey,
+          goal_amount: goalAmount ?? null,
+          goal_unit: goalUnit ?? null,
+          reminder_time: reminderTime ?? null,
           frequency: 'daily',
         })
         .select('id,created_at')
@@ -2370,6 +2849,10 @@ function FlowApp({
       name,
       icon,
       paletteKey,
+      goalAmount,
+      goalUnit,
+      reminderTime,
+      completedAt: null,
       streakDays: 0,
       bestStreakDays: 0,
       doneToday: false,
@@ -2473,6 +2956,9 @@ function FlowApp({
               rituals={rituals}
               settings={settings}
               username={username}
+              email={email}
+              habitFocus={habitFocus}
+              reduceMotion={reduceMotion}
               profileIncomplete={profileIncomplete}
               onOpenProfileSetup={onOpenProfileSetup}
               onSettingChange={updateSetting}
@@ -2483,7 +2969,13 @@ function FlowApp({
 
         <BottomNav activeTab={activeTab} bottomInset={insets.bottom} onChange={setActiveTab} onAdd={() => setAddOpen(true)} />
         <AskFloLauncher userId={userId} bottomInset={insets.bottom} topInset={insets.top} reduceMotion={reduceMotion} onOpen={() => setCoachOpen(true)} />
-        <CoachChatSheet open={coachOpen} rituals={rituals} reduceMotion={reduceMotion} onClose={() => setCoachOpen(false)} onAddRitual={addRitual} />
+        <CoachChatSheet
+          open={coachOpen}
+          rituals={rituals}
+          reduceMotion={reduceMotion}
+          onClose={() => setCoachOpen(false)}
+          onAddRitual={(name, icon) => addRitual({ name, icon, paletteKey: iconOptionForEmoji(icon).key })}
+        />
         <AddRitualSheet open={addOpen} onClose={() => setAddOpen(false)} onAdd={addRitual} reduceMotion={reduceMotion} />
         <Toast toast={toast} bottomInset={insets.bottom} reduceMotion={reduceMotion} onDone={clearToast} />
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -2517,7 +3009,8 @@ function TodayScreen({
   onToggleRitual: (id: string, x: number, y: number) => void;
   onOpenProfile: () => void;
 }) {
-  const todayLabel = useMemo(() => formatTodayLabel(), []);
+  const now = useMinuteNow();
+  const todayLabel = useMemo(() => `${formatTodayLabel(now)} - ${formatClockTime(now)}`, [now]);
   const [themeOverride, setThemeOverride] = useState<HeroThemeKey | null>(null);
   const [activeThemeKey, setActiveThemeKey] = useState<HeroThemeKey>(() => getHeroThemeKey());
   const statusRows = useMemo(
@@ -2525,8 +3018,10 @@ function TodayScreen({
       rituals.map((ritual) => ({
         icon: ritual.icon,
         name: ritual.name,
-        sub: `${ritual.streakDays} day streak`,
-        pct: `${percentFromWeekly(ritual.weekly)}%`,
+        streakDays: ritual.streakDays,
+        done: ritual.doneToday,
+        completedAt: ritual.completedAt ?? null,
+        pct: ritual.doneToday ? '100%' : `${Math.max(14, percentFromWeekly(ritual.weekly))}%`,
         palette: habitPalette[ritual.paletteKey],
       })),
     [rituals],
@@ -2575,11 +3070,11 @@ function TodayScreen({
     <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
       <View style={styles.topRow}>
         <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={onOpenProfile} style={styles.avatar}>
-          <Text style={styles.avatarText}>🙂</Text>
+          <LogoMark size={42} reduceMotion={reduceMotion} style={styles.logoMarkInline} />
         </Pressable>
         <View style={styles.greetingBlock}>
-          <Text style={styles.greetingSub}>Today · {todayLabel}</Text>
-          <Text style={styles.greetingName}>{username}</Text>
+          <Text numberOfLines={1} style={styles.greetingSub}>Today · {todayLabel}</Text>
+          <Text numberOfLines={1} style={styles.greetingName}>{username}</Text>
         </View>
         <View style={styles.bellButton}>
           <Bell size={19} color={colors.ink} strokeWidth={2.3} />
@@ -2599,6 +3094,7 @@ function TodayScreen({
         themeOverride={themeOverride}
         onSelect={selectThemeOverride}
       />
+      <TodayRhythmTimeline rituals={rituals} now={now} />
       {false ? (
         <GradientCard style={styles.hero}>
         <Text style={styles.heroHead}>
@@ -2643,7 +3139,16 @@ function TodayScreen({
 
           <View style={styles.statusCard}>
             {statusRows.map((row) => (
-              <StatusRow key={row.name} icon={row.icon} name={row.name} sub={row.sub} pct={row.pct} palette={row.palette} />
+              <StatusRow
+                key={row.name}
+                icon={row.icon}
+                name={row.name}
+                streakDays={row.streakDays}
+                done={row.done}
+                completedAt={row.completedAt}
+                pct={row.pct}
+                palette={row.palette}
+              />
             ))}
           </View>
         </>
@@ -2866,6 +3371,95 @@ function NightStar({
   );
 }
 
+function TodayRhythmTimeline({ rituals, now }: { rituals: Ritual[]; now: Date }) {
+  const [tooltipId, setTooltipId] = useState<string | null>(null);
+  const completed = rituals.filter((ritual) => ritual.doneToday && typeof ritual.completedAt === 'number');
+  const nowPct = hourToPercent(nowHour(now));
+
+  useEffect(() => {
+    if (!tooltipId) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setTooltipId(null), 1500);
+    return () => clearTimeout(timer);
+  }, [tooltipId]);
+
+  return (
+    <View style={styles.rhythmCard}>
+      <View style={styles.rhythmHeader}>
+        <Text style={styles.rhythmTitle}>Today's Rhythm</Text>
+        <Text style={styles.rhythmLogged}>{completed.length} logged</Text>
+      </View>
+      <View style={styles.rhythmTrackWrap}>
+        <View style={styles.rhythmTrack}>
+          <LinearGradient colors={['#FFE3C2', '#FFD199']} style={[styles.rhythmSegment, { flex: 6 }]} />
+          <LinearGradient colors={['#CFE8FF', '#AFDBFF']} style={[styles.rhythmSegment, { flex: 5 }]} />
+          <LinearGradient colors={['#FFD3E1', '#FFB9CF']} style={[styles.rhythmSegment, { flex: 4 }]} />
+          <LinearGradient colors={['#DCE1F0', '#C7CEE6']} style={[styles.rhythmSegment, { flex: 3 }]} />
+        </View>
+        <View pointerEvents="none" style={[styles.rhythmNowTick, { left: `${nowPct}%` }]} />
+        {completed.map((ritual) => (
+          <TimelineMarker
+            key={`${ritual.id}-${ritual.completedAt}`}
+            ritual={ritual}
+            visibleTooltip={tooltipId === ritual.id}
+            onPress={() => setTooltipId(ritual.id)}
+          />
+        ))}
+      </View>
+      <View style={styles.rhythmAxis}>
+        {['6a', '12p', '5p', '9p', '12a'].map((label) => (
+          <Text key={label} style={styles.rhythmAxisLabel}>{label}</Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function TimelineMarker({
+  ritual,
+  visibleTooltip,
+  onPress,
+}: {
+  ritual: Ritual;
+  visibleTooltip: boolean;
+  onPress: () => void;
+}) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const tooltip = useRef(new Animated.Value(0)).current;
+  const palette = habitPalette[ritual.paletteKey];
+  const left = hourToPercent(ritual.completedAt ?? 0);
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: 1,
+      speed: 16,
+      bounciness: 10,
+      useNativeDriver: true,
+    }).start();
+  }, [scale]);
+
+  useEffect(() => {
+    Animated.timing(tooltip, {
+      toValue: visibleTooltip ? 1 : 0,
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [tooltip, visibleTooltip]);
+
+  return (
+    <Animated.View style={[styles.timelineMarkerWrap, { left: `${left}%`, transform: [{ translateX: -16 }, { scale }] }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${ritual.name} completed at ${fmtHour(ritual.completedAt ?? 0)}`} onPress={onPress} style={[styles.timelineMarker, { shadowColor: palette.a }]}>
+        <Text style={styles.timelineMarkerIcon}>{ritual.icon}</Text>
+      </Pressable>
+      <Animated.View pointerEvents="none" style={[styles.timelineTooltip, { opacity: tooltip, transform: [{ translateY: tooltip.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }] }]}>
+        <Text numberOfLines={1} style={styles.timelineTooltipText}>{ritual.name} · {fmtHour(ritual.completedAt ?? 0)}</Text>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 function RitualCard({
   ritual,
   entering,
@@ -2878,9 +3472,12 @@ function RitualCard({
   onToggle: (id: string, x: number, y: number) => void;
 }) {
   const palette = habitPalette[ritual.paletteKey];
+  const goal = goalLabel(ritual.goalAmount, ritual.goalUnit);
   const enter = useRef(new Animated.Value(entering ? 0 : 1)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
   const checkScale = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const previousDone = useRef(ritual.doneToday);
 
   useEffect(() => {
     if (!entering) {
@@ -2894,6 +3491,19 @@ function RitualCard({
       useNativeDriver: true,
     }).start();
   }, [enter, entering, reduceMotion]);
+
+  useEffect(() => {
+    if (ritual.doneToday && !previousDone.current) {
+      pulse.setValue(0);
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: reduceMotion ? 1 : 480,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
+    previousDone.current = ritual.doneToday;
+  }, [pulse, reduceMotion, ritual.doneToday]);
 
   const toggle = (x: number, y: number) => {
     Animated.sequence([
@@ -2934,6 +3544,10 @@ function RitualCard({
       ]}
     >
       <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: ritual.doneToday }}
+        accessibilityLabel={`${ritual.doneToday ? 'Unmark' : 'Complete'} ${ritual.name}`}
+        onPress={(event) => toggle(event.nativeEvent.pageX, event.nativeEvent.pageY)}
         onPressIn={() => {
           Animated.timing(pressScale, {
             toValue: 0.97,
@@ -2962,13 +3576,18 @@ function RitualCard({
               reduceMotion={reduceMotion}
               centerIcon={ritual.icon}
             />
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: ritual.doneToday }}
-              accessibilityLabel={`${ritual.doneToday ? 'Unmark' : 'Complete'} ${ritual.name}`}
-              hitSlop={10}
-              onPress={(event) => toggle(event.nativeEvent.pageX, event.nativeEvent.pageY)}
-            >
+            <View style={styles.ritualCheckHost}>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.ritualPulse,
+                  {
+                    borderColor: palette.a,
+                    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.42, 0] }),
+                    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1.9] }) }],
+                  },
+                ]}
+              />
               <Animated.View style={[styles.ritualCheck, { transform: [{ scale: checkScale }] }]}>
                 {ritual.doneToday ? (
                   <LinearGradient colors={[palette.a, palette.b]} style={styles.ritualCheckFill}>
@@ -2980,16 +3599,60 @@ function RitualCard({
                   </View>
                 )}
               </Animated.View>
-            </Pressable>
+            </View>
           </View>
           <View>
             <Text numberOfLines={2} style={styles.ritualName}>{ritual.name}</Text>
+            {goal || ritual.reminderTime ? (
+              <Text numberOfLines={1} style={[styles.ritualGoal, { color: palette.ink }]}>
+                {[goal, ritual.reminderTime ? formatReminderTime(ritual.reminderTime) : ''].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
+            {ritual.doneToday && typeof ritual.completedAt === 'number' ? (
+              <RitualTimeBadge completedAt={ritual.completedAt} palette={palette} reduceMotion={reduceMotion} />
+            ) : null}
             <View style={styles.ritualStreakRow}>
               <Text style={[styles.ritualStreak, { color: palette.ink }]}>🔥 {ritual.streakDays} day streak</Text>
             </View>
           </View>
         </LinearGradient>
       </Pressable>
+    </Animated.View>
+  );
+}
+
+function RitualTimeBadge({
+  completedAt,
+  palette,
+  reduceMotion,
+}: {
+  completedAt: number;
+  palette: HabitPalette;
+  reduceMotion: boolean;
+}) {
+  const progress = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: reduceMotion ? 1 : 250,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [progress, reduceMotion]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.ritualTimeBadge,
+        {
+          opacity: progress,
+          transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }],
+        },
+      ]}
+    >
+      <View style={[styles.ritualTimeDot, { backgroundColor: palette.a }]} />
+      <Text style={[styles.ritualTimeText, { color: palette.ink }]}>Done · {fmtHour(completedAt)}</Text>
     </Animated.View>
   );
 }
@@ -3101,8 +3764,10 @@ function ProgressScreen({
             <StatusRow
               icon={ritual.icon}
               name={ritual.name}
-              sub={`${ritual.streakDays} day streak`}
-              pct={`${percentFromWeekly(ritual.weekly)}%`}
+              streakDays={ritual.streakDays}
+              done={ritual.doneToday}
+              completedAt={ritual.completedAt ?? null}
+              pct={ritual.doneToday ? '100%' : `${Math.max(14, percentFromWeekly(ritual.weekly))}%`}
               palette={habitPalette[ritual.paletteKey]}
             />
           </Pressable>
@@ -3291,25 +3956,28 @@ function CoachScreen({
         data={messages}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        style={styles.coachListFrame}
         contentContainerStyle={styles.coachList}
         renderItem={({ item }) => (
           <CoachBubble message={item} reduceMotion={reduceMotion} onConfirmAction={confirmAction} />
         )}
       />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickReplyRow}>
-        {quickReplies.map((reply) => (
-          <Pressable key={reply} onPress={() => sendMessage(reply)} style={styles.quickReplyChip}>
-            <Text style={styles.quickReplyText}>{reply}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.quickReplyWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickReplyScroll} contentContainerStyle={styles.quickReplyRow}>
+          {quickReplies.map((reply) => (
+            <Pressable key={reply} onPress={() => sendMessage(reply)} style={styles.quickReplyChip}>
+              <Text numberOfLines={1} style={styles.quickReplyText}>{reply}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
 
       <View style={styles.composerRow}>
         <TextInput
           value={composer}
           onChangeText={setComposer}
-          placeholder="Ask your coach"
+          placeholder="Ask about your habits..."
           placeholderTextColor={colors.inkFaint}
           style={styles.composerInput}
           returnKeyType="send"
@@ -3468,6 +4136,9 @@ function ProfileScreen({
   rituals,
   settings,
   username,
+  email,
+  habitFocus,
+  reduceMotion,
   profileIncomplete,
   onOpenProfileSetup,
   onSettingChange,
@@ -3476,6 +4147,9 @@ function ProfileScreen({
   rituals: Ritual[];
   settings: FlowSettings;
   username: string;
+  email?: string;
+  habitFocus?: string;
+  reduceMotion: boolean;
   profileIncomplete: boolean;
   onOpenProfileSetup: () => void;
   onSettingChange: (key: keyof FlowSettings, value: boolean) => void;
@@ -3483,23 +4157,29 @@ function ProfileScreen({
 }) {
   const best = rituals.reduce((max, ritual) => Math.max(max, ritual.bestStreakDays, ritual.streakDays), 0);
   const daysActive = rituals.reduce((sum, ritual) => sum + ritual.heat.filter(Boolean).length, 0);
-  const todayLabel = useMemo(() => formatTodayLabel(), []);
+  const now = useMinuteNow();
+  const todayLabel = useMemo(() => formatTodayLabel(now), [now]);
 
   return (
     <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
       <ScreenHeader title="Profile" icon={Settings} />
       <View style={styles.profileCard}>
         <View style={styles.profileAvatar}>
-          <Text style={styles.profileAvatarText}>🙂</Text>
+          <LogoMark size={52} reduceMotion={reduceMotion} style={styles.logoMarkInline} />
         </View>
         <View style={styles.profileCopy}>
           <View style={styles.profileNameRow}>
-            <Text style={styles.profileName}>{username}</Text>
+            <Text numberOfLines={1} style={styles.profileName}>{username}</Text>
             <LinearGradient colors={['#FFB25B', '#FFD59E']} style={styles.premium}>
               <Text style={styles.premiumText}>Today</Text>
             </LinearGradient>
+            <Pressable accessibilityRole="button" accessibilityLabel="Edit profile details" onPress={onOpenProfileSetup} hitSlop={8} style={styles.profileEditButton}>
+              <Settings size={13} color={colors.blue1} strokeWidth={2.4} />
+            </Pressable>
           </View>
-          <Text style={styles.profileEmail}>Started {todayLabel}</Text>
+          {email ? <Text numberOfLines={1} style={styles.profileEmail}>{email}</Text> : null}
+          <Text numberOfLines={1} style={styles.profileStarted}>Started {todayLabel}</Text>
+          {habitFocus ? <Text numberOfLines={1} style={styles.profileFocus}>Focus: {habitFocus}</Text> : null}
         </View>
       </View>
 
@@ -3733,9 +4413,15 @@ function GradientCard({ children, style }: { children: ReactNode; style?: object
 }
 
 function ScreenHeader({ title, icon: Icon }: { title: string; icon: IconComponent }) {
+  const now = useMinuteNow();
+  const todayLabel = useMemo(() => `${formatTodayLabel(now)} - ${formatClockTime(now)}`, [now]);
+
   return (
     <View style={styles.topRow}>
-      <Text style={styles.screenTitle}>{title}</Text>
+      <View style={styles.screenHeaderCopy}>
+        <Text style={styles.screenTitle}>{title}</Text>
+        <Text numberOfLines={1} style={styles.screenHeaderSub}>Today - {todayLabel}</Text>
+      </View>
       <View style={styles.bellButton}>
         <Icon size={19} color={colors.ink} strokeWidth={2.3} />
       </View>
@@ -3746,26 +4432,33 @@ function ScreenHeader({ title, icon: Icon }: { title: string; icon: IconComponen
 function StatusRow({
   icon,
   name,
-  sub,
+  streakDays,
+  done,
+  completedAt,
   pct,
   palette,
 }: {
   icon: string;
   name: string;
-  sub: string;
+  streakDays: number;
+  done: boolean;
+  completedAt: number | null;
   pct: string;
   palette: HabitPalette;
 }) {
   return (
     <View style={styles.statusRow}>
-      <View style={[styles.statusIcon, { backgroundColor: `${palette.a}24` }]}>
+      <View style={[styles.statusIcon, { backgroundColor: palette.bg[0] }]}>
         <Text style={styles.statusIconText}>{icon}</Text>
       </View>
       <View style={styles.statusCopy}>
         <Text numberOfLines={1} style={styles.statusName}>{name}</Text>
-        <Text numberOfLines={1} style={styles.statusSub}>{sub}</Text>
+        <Text numberOfLines={1} style={styles.statusSub}>
+          {streakDays} day streak
+          {done && typeof completedAt === 'number' ? <Text style={{ color: palette.a }}> · ✓ {fmtHour(completedAt)}</Text> : null}
+        </Text>
       </View>
-      <Text style={[styles.statusPct, { color: palette.ink }]}>{pct}</Text>
+      <Text style={[styles.statusPct, { color: done ? habitPalette.food.ink : habitPalette.reading.ink }]}>{pct}</Text>
     </View>
   );
 }
@@ -4184,12 +4877,13 @@ function CoachChatSheet({
     <Modal transparent visible={open} animationType="slide" onRequestClose={onClose}>
       <View style={styles.coachSheetRoot}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close Ask Flo" onPress={onClose} style={styles.coachSheetOverlay} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.coachSheetKeyboard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.coachSheetKeyboard}>
           <View
             style={[
               styles.coachSheet,
               {
-                maxHeight: Math.max(420, height - insets.top - 28),
+                height: Math.min(Math.max(520, height * 0.86), height - insets.top - 12),
+                maxHeight: height - insets.top - 12,
                 paddingBottom: Math.max(insets.bottom, 12) + 12,
               },
             ]}
@@ -4249,6 +4943,45 @@ function NavItem({
   );
 }
 
+function RitualPreviewCard({ ritual, reduceMotion }: { ritual: Ritual; reduceMotion: boolean }) {
+  const palette = habitPalette[ritual.paletteKey];
+  const goal = goalLabel(ritual.goalAmount, ritual.goalUnit);
+
+  return (
+    <View style={styles.ritualPreviewWrap}>
+      <Text style={styles.ritualPreviewLabel}>Live preview</Text>
+      <LinearGradient colors={palette.bg} style={[styles.ritualCard, styles.ritualPreviewCard]}>
+        <View style={styles.ritualTop}>
+          <LiquidRing
+            percent={ritual.doneToday ? 100 : 42}
+            size={46}
+            variant="mini"
+            palette={palette}
+            reduceMotion={reduceMotion}
+            centerIcon={ritual.icon}
+          />
+          <View style={styles.ritualCheck}>
+            <View style={styles.ritualCheckEmpty}>
+              <Check size={15} color="#FFFFFF" strokeWidth={3} />
+            </View>
+          </View>
+        </View>
+        <View>
+          <Text numberOfLines={2} style={styles.ritualName}>{ritual.name}</Text>
+          {goal || ritual.reminderTime ? (
+            <Text numberOfLines={1} style={[styles.ritualGoal, { color: palette.ink }]}>
+              {[goal, ritual.reminderTime ? formatReminderTime(ritual.reminderTime) : ''].filter(Boolean).join(' · ')}
+            </Text>
+          ) : null}
+          <View style={styles.ritualStreakRow}>
+            <Text style={[styles.ritualStreak, { color: palette.ink }]}>🔥 0 day streak</Text>
+          </View>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+}
+
 function AddRitualSheet({
   open,
   onClose,
@@ -4257,15 +4990,43 @@ function AddRitualSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (name: string, icon: string) => void | Promise<void>;
+  onAdd: (input: CreateRitualInput) => void | Promise<void>;
   reduceMotion: boolean;
 }) {
+  const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
   const [mounted, setMounted] = useState(open);
   const [name, setName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState(iconChoices[0]);
+  const [selectedIconKey, setSelectedIconKey] = useState<PaletteKey>('water');
+  const [trackAmount, setTrackAmount] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [goalUnit, setGoalUnit] = useState<GoalUnit>('liters');
+  const [reminderTime, setReminderTime] = useState<string | undefined>('20:00');
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [hasError, setHasError] = useState(false);
   const overlay = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(420)).current;
+  const selectedIcon = iconOptionForKey(selectedIconKey);
+  const parsedAmount = Number(amount.replace(',', '.'));
+  const amountValid = !trackAmount || (Number.isFinite(parsedAmount) && parsedAmount > 0);
+  const previewName = name.trim() || 'Evening stretch';
+  const previewGoalAmount = trackAmount && amountValid ? parsedAmount : undefined;
+  const sheetMaxWidth = width >= 720 ? 520 : undefined;
+  const previewRitual: Ritual = {
+    id: 'preview',
+    name: previewName,
+    icon: selectedIcon.icon,
+    paletteKey: selectedIcon.key,
+    goalAmount: previewGoalAmount,
+    goalUnit: previewGoalAmount ? goalUnit : undefined,
+    reminderTime,
+    streakDays: 0,
+    bestStreakDays: 0,
+    doneToday: false,
+    weekly: [0, 0, 0, 0, 0, 0, 0],
+    heat: Array.from({ length: 30 }, () => 0),
+    createdAt: Date.now(),
+  };
 
   useEffect(() => {
     if (open) {
@@ -4304,15 +5065,40 @@ function AddRitualSheet({
 
   const submit = async () => {
     const trimmed = name.trim();
-    if (!trimmed) {
+    if (!trimmed || !amountValid) {
       setHasError(true);
       return;
     }
-    await onAdd(trimmed, selectedIcon);
+    await onAdd({
+      name: trimmed,
+      icon: selectedIcon.icon,
+      paletteKey: selectedIcon.key,
+      goalAmount: trackAmount ? parsedAmount : undefined,
+      goalUnit: trackAmount ? goalUnit : undefined,
+      reminderTime,
+    });
     setName('');
-    setSelectedIcon(iconChoices[0]);
+    setSelectedIconKey('water');
+    setTrackAmount(false);
+    setAmount('');
+    setGoalUnit('liters');
+    setReminderTime('20:00');
     setHasError(false);
     onClose();
+  };
+
+  const applyTemplate = (template: typeof ritualTemplates[number]) => {
+    setName(template.name);
+    setSelectedIconKey(template.iconKey);
+    setTrackAmount(true);
+    setAmount(String(template.goalAmount));
+    setGoalUnit(template.goalUnit);
+    setReminderTime(template.reminderTime);
+    setHasError(false);
+  };
+
+  const cycleUnit = () => {
+    setGoalUnit((current) => goalUnits[(goalUnits.indexOf(current) + 1) % goalUnits.length]);
   };
 
   if (!mounted) {
@@ -4321,13 +5107,40 @@ function AddRitualSheet({
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalRoot}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
           <Animated.View style={[styles.modalOverlay, { opacity: overlay }]} />
         </Pressable>
-        <Animated.View style={[styles.modalSheet, { transform: [{ translateY: sheetY }] }]}>
+        <Animated.View
+          style={[
+            styles.modalSheet,
+            {
+              maxHeight: height - insets.top - 16,
+              maxWidth: sheetMaxWidth,
+              paddingBottom: Math.max(insets.bottom, 18) + 12,
+              transform: [{ translateY: sheetY }],
+            },
+          ]}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.modalSheetContent}
+          >
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>New ritual</Text>
+
+          <RitualPreviewCard ritual={previewRitual} reduceMotion={reduceMotion} />
+
+          <Text style={styles.fieldLabel}>Quick start</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templateChipRow}>
+            {ritualTemplates.map((template) => (
+              <Pressable key={template.label} accessibilityRole="button" onPress={() => applyTemplate(template)} style={styles.templateChip}>
+                <Text style={styles.templateChipText}>{template.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
           <Text style={styles.fieldLabel}>Name</Text>
           <TextInput
             value={name}
@@ -4340,31 +5153,105 @@ function AddRitualSheet({
             placeholder={hasError ? 'Enter a name first' : 'Evening stretch'}
             placeholderTextColor={hasError ? colors.danger : colors.inkFaint}
             style={[styles.fieldInput, hasError && styles.fieldInputError]}
-            returnKeyType="done"
-            onSubmitEditing={submit}
+            returnKeyType="next"
           />
           <Text style={styles.fieldLabel}>Icon</Text>
-          <View style={styles.iconPickRow}>
-            {iconChoices.map((icon) => (
+          <View style={styles.iconLibraryGrid}>
+            {ritualIconLibrary.map((option) => {
+              const selected = option.key === selectedIconKey;
+              const palette = habitPalette[option.key];
+              return (
               <Pressable
-                key={icon}
+                key={option.key}
                 accessibilityRole="button"
-                accessibilityState={{ selected: icon === selectedIcon }}
-                onPress={() => setSelectedIcon(icon)}
-                style={[styles.iconPick, icon === selectedIcon && styles.iconPickSelected]}
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${option.label} icon`}
+                onPress={() => setSelectedIconKey(option.key)}
+                style={[styles.iconLibraryTile, selected && { borderColor: palette.a, shadowColor: palette.a, shadowOpacity: 0.25, elevation: 3 }]}
               >
-                <Text style={styles.iconPickText}>{icon}</Text>
+                <Text style={styles.iconLibraryEmoji}>{option.icon}</Text>
+                <Text numberOfLines={1} style={styles.iconLibraryLabel}>{option.label}</Text>
+              </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable accessibilityRole="switch" accessibilityState={{ checked: trackAmount }} onPress={() => setTrackAmount((current) => !current)} style={styles.amountToggleRow}>
+            <View>
+              <Text style={styles.amountToggleTitle}>Track a daily amount</Text>
+              <Text style={styles.amountToggleSub}>Optional goal or quantity tracking</Text>
+            </View>
+            <View style={[styles.amountSwitch, trackAmount && styles.amountSwitchOn]}>
+              <View style={[styles.amountSwitchKnob, trackAmount && styles.amountSwitchKnobOn]} />
+            </View>
+          </Pressable>
+
+          {trackAmount ? (
+            <View style={styles.amountRow}>
+              <TextInput
+                value={amount}
+                onChangeText={(value) => {
+                  setAmount(value.replace(/[^0-9.]/g, '').slice(0, 6));
+                  if (hasError) {
+                    setHasError(false);
+                  }
+                }}
+                placeholder="4"
+                placeholderTextColor={colors.inkFaint}
+                keyboardType="decimal-pad"
+                style={[styles.fieldInput, styles.amountInput, hasError && !amountValid && styles.fieldInputError]}
+              />
+              <Pressable accessibilityRole="button" onPress={cycleUnit} style={styles.unitButton}>
+                <Text style={styles.unitButtonText}>{goalUnit}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <Text style={styles.fieldLabel}>Remind me</Text>
+          <View style={styles.reminderChipRow}>
+            {reminderPresets.map((preset) => (
+              <Pressable
+                key={preset.value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: reminderTime === preset.value }}
+                onPress={() => setReminderTime(preset.value)}
+                style={[styles.reminderChip, reminderTime === preset.value && styles.reminderChipSelected]}
+              >
+                <Text style={[styles.reminderChipText, reminderTime === preset.value && styles.reminderChipTextSelected]}>{preset.label}</Text>
               </Pressable>
             ))}
+            <Pressable accessibilityRole="button" onPress={() => setTimePickerOpen(true)} style={[styles.reminderChip, reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) && styles.reminderChipSelected]}>
+              <Text style={[styles.reminderChipText, reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) && styles.reminderChipTextSelected]}>
+                {reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) ? formatReminderTime(reminderTime) : 'Custom'}
+              </Text>
+            </Pressable>
           </View>
+          <Text style={styles.reminderExplain}>{ritualReminderExplanation(previewName, previewGoalAmount, previewGoalAmount ? goalUnit : undefined, reminderTime)}</Text>
+          {timePickerOpen ? (
+            <DateTimePicker
+              mode="time"
+              value={dateFromReminderTime(reminderTime ?? '20:00')}
+              display="default"
+              onChange={(_, selectedDate) => {
+                if (Platform.OS === 'android') {
+                  setTimePickerOpen(false);
+                }
+                if (selectedDate) {
+                  setReminderTime(timeValueFromDate(selectedDate));
+                }
+              }}
+            />
+          ) : null}
+
           <View style={styles.modalActions}>
             <Pressable accessibilityRole="button" onPress={onClose} style={styles.btnSecondary}>
               <Text style={styles.btnSecondaryText}>Cancel</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={submit} style={styles.btnPrimary}>
+            <Pressable accessibilityRole="button" disabled={!name.trim() || !amountValid} onPress={submit} style={[styles.btnPrimary, (!name.trim() || !amountValid) && styles.btnPrimaryDisabled]}>
               <Text style={styles.btnPrimaryText}>Add ritual</Text>
             </Pressable>
           </View>
+          </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -4606,6 +5493,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.32,
     shadowRadius: 18,
     elevation: 7,
+  },
+  logoMarkInline: {
+    marginBottom: 0,
   },
   logoClip: {
     width: '75%',
@@ -5014,6 +5904,59 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: Platform.OS === 'ios' ? 7 : 3,
   },
+  profileChoiceGroup: {
+    marginBottom: 14,
+  },
+  profileChoiceLabel: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  profileChoiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  profileChoiceChip: {
+    minHeight: 36,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.16)',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  profileChoiceChipSelected: {
+    borderColor: colors.blue1,
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  profileChoiceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.inkFaint,
+  },
+  profileChoiceDotSelected: {
+    backgroundColor: colors.blue1,
+  },
+  profileChoiceText: {
+    fontFamily: fontBodyBold,
+    fontSize: 12,
+    color: colors.ink,
+  },
+  profileChoiceTextSelected: {
+    color: colors.ink,
+  },
   mobilePrefix: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -5145,6 +6088,11 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 16,
     gap: 12,
+    flexGrow: 1,
+  },
+  coachListFrame: {
+    flex: 1,
+    minHeight: 0,
   },
   coachMessageRow: {
     flexDirection: 'row',
@@ -5287,11 +6235,20 @@ const styles = StyleSheet.create({
   },
   quickReplyRow: {
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingRight: 18,
   },
+  quickReplyWrap: {
+    height: 48,
+    flexShrink: 0,
+    justifyContent: 'center',
+  },
+  quickReplyScroll: {
+    flexGrow: 0,
+  },
   quickReplyChip: {
-    minHeight: 34,
+    height: 34,
+    maxWidth: 220,
     borderRadius: 999,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -5304,6 +6261,7 @@ const styles = StyleSheet.create({
     fontFamily: fontBodyBold,
     fontSize: 12.5,
     color: colors.ink,
+    maxWidth: 190,
   },
   composerRow: {
     flexDirection: 'row',
@@ -5618,6 +6576,105 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
+  rhythmCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 16,
+    marginBottom: 18,
+    ...shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  rhythmHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  rhythmTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 17,
+    color: colors.ink,
+  },
+  rhythmLogged: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12,
+    color: colors.inkSoft,
+  },
+  rhythmTrackWrap: {
+    height: 64,
+    justifyContent: 'center',
+  },
+  rhythmTrack: {
+    height: 34,
+    borderRadius: 17,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  rhythmSegment: {
+    height: '100%',
+  },
+  rhythmNowTick: {
+    position: 'absolute',
+    top: 12,
+    bottom: 12,
+    width: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(28,43,73,0.36)',
+  },
+  timelineMarkerWrap: {
+    position: 'absolute',
+    top: 15,
+    width: 32,
+    height: 44,
+    alignItems: 'center',
+  },
+  timelineMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  timelineMarkerIcon: {
+    fontSize: 15,
+  },
+  timelineTooltip: {
+    position: 'absolute',
+    bottom: 40,
+    minWidth: 112,
+    maxWidth: 172,
+    borderRadius: 12,
+    backgroundColor: colors.ink,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  timelineTooltipText: {
+    fontFamily: fontBodyBold,
+    fontSize: 11,
+    color: '#FFFFFF',
+  },
+  rhythmAxis: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  rhythmAxisLabel: {
+    fontFamily: fontBodyBold,
+    fontSize: 10.5,
+    color: colors.inkSoft,
+  },
   ritualCell: {
     width: '48%',
     minWidth: 150,
@@ -5648,6 +6705,19 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     overflow: 'hidden',
   },
+  ritualCheckHost: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ritualPulse: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+  },
   ritualCheckFill: {
     flex: 1,
     alignItems: 'center',
@@ -5664,6 +6734,34 @@ const styles = StyleSheet.create({
     fontSize: 16.5,
     color: colors.ink,
     marginTop: 10,
+  },
+  ritualGoal: {
+    fontFamily: fontBodyBold,
+    fontSize: 11,
+    marginTop: 4,
+    opacity: 0.78,
+  },
+  ritualTimeBadge: {
+    alignSelf: 'flex-start',
+    minHeight: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.56)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 9,
+    marginTop: 7,
+  },
+  ritualTimeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  ritualTimeText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 10.5,
   },
   ritualStreakRow: {
     marginTop: 5,
@@ -5721,10 +6819,21 @@ const styles = StyleSheet.create({
     fontFamily: fontBodyExtra,
     fontSize: 13,
   },
+  screenHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
   screenTitle: {
     fontFamily: fontSerif,
     fontSize: 22,
     color: colors.ink,
+  },
+  screenHeaderSub: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    marginTop: 3,
   },
   chipRow: {
     gap: 8,
@@ -5982,9 +7091,10 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.blue1,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   profileAvatarText: {
     fontSize: 22,
@@ -5997,12 +7107,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexWrap: 'wrap',
   },
   profileName: {
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: fontSerif,
     fontSize: 17,
     color: colors.ink,
+  },
+  profileEditButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(79,168,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.2)',
   },
   premium: {
     borderRadius: 999,
@@ -6019,6 +7140,23 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.inkSoft,
     marginTop: 3,
+  },
+  profileStarted: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    marginTop: 3,
+  },
+  profileFocus: {
+    alignSelf: 'flex-start',
+    fontFamily: fontBodyExtra,
+    fontSize: 11.5,
+    color: habitPalette.focus.ink,
+    backgroundColor: 'rgba(122,121,255,0.1)',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    marginTop: 7,
   },
   pstatGrid: {
     flexDirection: 'row',
@@ -6283,6 +7421,9 @@ const styles = StyleSheet.create({
     shadowRadius: 34,
     elevation: 24,
   },
+  modalSheetContent: {
+    paddingBottom: 4,
+  },
   modalHandle: {
     width: 36,
     height: 4,
@@ -6297,11 +7438,45 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: 14,
   },
+  ritualPreviewWrap: {
+    marginBottom: 18,
+  },
+  ritualPreviewLabel: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  ritualPreviewCard: {
+    minHeight: 136,
+  },
   fieldLabel: {
     fontFamily: fontBodyBold,
     fontSize: 12,
     color: colors.inkSoft,
     marginBottom: 6,
+  },
+  templateChipRow: {
+    gap: 8,
+    paddingBottom: 16,
+  },
+  templateChip: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+  },
+  templateChipText: {
+    fontFamily: fontBodyBold,
+    fontSize: 12,
+    color: colors.ink,
   },
   fieldInput: {
     height: 46,
@@ -6342,6 +7517,142 @@ const styles = StyleSheet.create({
   iconPickText: {
     fontSize: 19,
   },
+  iconLibraryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 18,
+  },
+  iconLibraryTile: {
+    width: '17.6%',
+    minHeight: 64,
+    borderRadius: 15,
+    backgroundColor: '#F3F6FB',
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  iconLibraryEmoji: {
+    fontSize: 18,
+    marginBottom: 3,
+  },
+  iconLibraryLabel: {
+    fontFamily: fontBodyBold,
+    fontSize: 9.5,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  amountToggleRow: {
+    minHeight: 58,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.14)',
+    backgroundColor: '#F8FAFD',
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  amountToggleTitle: {
+    fontFamily: fontBodyExtra,
+    fontSize: 13,
+    color: colors.ink,
+  },
+  amountToggleSub: {
+    fontFamily: fontBody,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    marginTop: 2,
+  },
+  amountSwitch: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(120,140,180,0.2)',
+    padding: 3,
+  },
+  amountSwitchOn: {
+    backgroundColor: colors.blue1,
+  },
+  amountSwitchKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  amountSwitchKnobOn: {
+    transform: [{ translateX: 18 }],
+  },
+  amountRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  amountInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  unitButton: {
+    minWidth: 106,
+    height: 46,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.28)',
+    backgroundColor: 'rgba(79,168,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  unitButtonText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12,
+    color: colors.blue1,
+    textTransform: 'capitalize',
+  },
+  reminderChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  reminderChip: {
+    minHeight: 34,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.16)',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  reminderChipSelected: {
+    borderColor: colors.blue1,
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  reminderChipText: {
+    fontFamily: fontBodyBold,
+    fontSize: 12,
+    color: colors.ink,
+  },
+  reminderChipTextSelected: {
+    color: colors.blue1,
+  },
+  reminderExplain: {
+    fontFamily: fontBody,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: colors.inkSoft,
+    marginBottom: 16,
+  },
   modalActions: {
     flexDirection: 'row',
     gap: 10,
@@ -6366,6 +7677,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.32,
     shadowRadius: 14,
     elevation: 5,
+  },
+  btnPrimaryDisabled: {
+    opacity: 0.45,
   },
   btnSecondaryText: {
     fontFamily: fontBodyExtra,

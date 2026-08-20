@@ -1,0 +1,3 @@
+alter table public.profiles
+  add column if not exists gender text,
+  add column if not exists habit_focus text;

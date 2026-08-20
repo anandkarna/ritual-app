@@ -61,18 +61,23 @@ alter table public.habit_logs enable row level security;
 alter table public.weekly_insights enable row level security;
 alter table public.notifications enable row level security;
 
+drop policy if exists "profiles are owned by auth user" on public.profiles;
 create policy "profiles are owned by auth user" on public.profiles
   for all using (id = auth.uid()) with check (id = auth.uid());
 
+drop policy if exists "habits are owned by auth user" on public.habits;
 create policy "habits are owned by auth user" on public.habits
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+drop policy if exists "habit logs are owned by auth user" on public.habit_logs;
 create policy "habit logs are owned by auth user" on public.habit_logs
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+drop policy if exists "weekly insights are owned by auth user" on public.weekly_insights;
 create policy "weekly insights are owned by auth user" on public.weekly_insights
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+drop policy if exists "notifications are owned by auth user" on public.notifications;
 create policy "notifications are owned by auth user" on public.notifications
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 

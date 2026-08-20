@@ -1,4 +1,0 @@
-[Vulkan Loader] WARNING | LAYER: windows_read_data_files_in_registry: Registry lookup failed to get layer manifest files.
-[Vulkan Loader] WARNING:        terminator_CreateInstance: Received return code -3 from call to vkCreateInstance in ICD C:\WINDOWS\System32\DriverStore\FileRepository\nvlti.inf_amd64_318ac089fbaddcf6\nvoglv64.dll. Skipping this driver.
-(anonymous namespace)::WglExtensionsDispatch::init: Could not find wglGetExtensionsString! arbFound 0 listarbNull/empty 1 0 extFound 0 extNull/empty 1 0 remote 0
-OpenGL Core Profile not supported.
