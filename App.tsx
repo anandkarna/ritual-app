@@ -177,6 +177,14 @@ type ToastState = {
   message: string;
 };
 
+type HeaderMetric = {
+  id: 'streak' | 'points' | 'hearts';
+  icon: string;
+  value: number;
+  label: string;
+  color: string;
+};
+
 type BurstParticle = {
   id: string;
   x: number;
@@ -491,6 +499,7 @@ const defaultState: SavedFlowState = {
 };
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -516,6 +525,10 @@ function formatTodayLabel(date = new Date()) {
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${weekdays[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+function formatLiveDateTime(date = new Date()) {
+  return `Today · ${formatTodayLabel(date)} · ${formatClockTime(date)}`;
 }
 
 function formatClockTime(date = new Date()) {
@@ -568,13 +581,13 @@ function useMinuteNow() {
 
 function getHeroThemeKey(date = new Date()): HeroThemeKey {
   const hour = date.getHours();
-  if (hour >= 5 && hour < 11) {
+  if (hour >= 5 && hour < 12) {
     return 'morning';
   }
-  if (hour >= 11 && hour < 17) {
+  if (hour >= 12 && hour < 17) {
     return 'afternoon';
   }
-  if (hour >= 17 && hour < 20) {
+  if (hour >= 17 && hour < 21) {
     return 'evening';
   }
   return 'night';
@@ -1028,6 +1041,63 @@ function longestStreakFromHeat(heat: number[]) {
   return best;
 }
 
+function combinedHeatFromRituals(rituals: Ritual[]) {
+  return Array.from({ length: 30 }, (_, index) => {
+    if (!rituals.length) {
+      return 0;
+    }
+    return rituals.reduce((sum, ritual) => sum + (ritual.heat[index] ? 1 : 0), 0);
+  });
+}
+
+function isCompletionInUsualWindow(ritual: Ritual) {
+  if (typeof ritual.completedAt !== 'number' || !ritual.reminderTime) {
+    return false;
+  }
+  const [hourRaw, minuteRaw] = ritual.reminderTime.split(':');
+  const reminderHour = Number(hourRaw) + (Number(minuteRaw) || 0) / 60;
+  if (!Number.isFinite(reminderHour)) {
+    return false;
+  }
+  return Math.abs(ritual.completedAt - reminderHour) <= 1;
+}
+
+function derivedHeaderMetrics(rituals: Ritual[]): HeaderMetric[] {
+  const combinedHeat = combinedHeatFromRituals(rituals);
+  const daysWithAnyCompletion = combinedHeat.map((value) => (value > 0 ? 1 : 0));
+  const currentOverallStreak = currentStreakFromHeat(daysWithAnyCompletion);
+  const completionPoints = rituals.reduce((sum, ritual) => sum + ritual.heat.reduce((total, value) => total + (value ? 10 : 0), 0), 0);
+  const timeWindowBonus = rituals.reduce((sum, ritual) => sum + (isCompletionInUsualWindow(ritual) ? 5 : 0), 0);
+  const firstActiveDay = daysWithAnyCompletion.findIndex(Boolean);
+  const missedDays = firstActiveDay >= 0
+    ? daysWithAnyCompletion.slice(firstActiveDay).filter((value) => !value).length
+    : 0;
+
+  return [
+    {
+      id: 'streak',
+      icon: '🔥',
+      value: currentOverallStreak,
+      label: 'Streak: consecutive days with at least one completed ritual.',
+      color: '#FF9F43',
+    },
+    {
+      id: 'points',
+      icon: '💎',
+      value: completionPoints + timeWindowBonus,
+      label: 'Rhythm Points: +10 per completion, +5 when done near its reminder time.',
+      color: '#4FA8FF',
+    },
+    {
+      id: 'hearts',
+      icon: '💗',
+      value: clamp(5 - missedDays, 0, 5),
+      label: 'Grace Hearts: forgiveness buffer for missed full days.',
+      color: '#FF6A96',
+    },
+  ];
+}
+
 function ritualsFromSupabaseRows(habits: SupabaseHabit[], logs: SupabaseHabitLog[]) {
   const days30 = isoDaysBack(30);
   const days7 = days30.slice(-7);
@@ -1166,6 +1236,16 @@ function AppRoot() {
     Fraunces_600SemiBold,
     Fraunces_700Bold,
   });
+  const reduceMotion = useReducedMotion();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    if (!fontsLoaded) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setShowSplash(false), reduceMotion ? 900 : 2800);
+    return () => clearTimeout(timer);
+  }, [fontsLoaded, reduceMotion]);
 
   if (!fontsLoaded) {
     return <View style={styles.loadingRoot} />;
@@ -1175,12 +1255,246 @@ function AppRoot() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AuthenticatedApp />
+        {showSplash ? <LaunchSplash reduceMotion={reduceMotion} onSkip={() => setShowSplash(false)} /> : null}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
 export default AppRoot;
+
+function LaunchSplash({ reduceMotion, onSkip }: { reduceMotion: boolean; onSkip: () => void }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const copy = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(copy, {
+      toValue: 1,
+      delay: reduceMotion ? 0 : 1650,
+      duration: reduceMotion ? 1 : 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [copy, reduceMotion]);
+
+  const dismiss = () => {
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: reduceMotion ? 1 : 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(onSkip);
+  };
+
+  return (
+    <Animated.View style={[styles.launchSplash, { opacity }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Skip launch animation" onPress={dismiss} style={styles.launchSkip}>
+        <Text style={styles.launchSkipText}>Skip</Text>
+      </Pressable>
+      <RitualsMark size={180} color="#F4F8FF" mode="launch" reduceMotion={reduceMotion} style={styles.launchMarkWrap} />
+      <Animated.View
+        style={[
+          styles.launchCopy,
+          {
+            opacity: copy,
+            transform: [{ translateY: copy.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+          },
+        ]}
+      >
+        <Text style={styles.launchTitle}>Rituals</Text>
+        <Text style={styles.launchTagline}>Small rituals · Steady flow</Text>
+      </Animated.View>
+      <View style={styles.launchLoadingRow}>
+        <RitualsMark size={18} color="#7C8AA6" mode="spinner" reduceMotion={reduceMotion} />
+        <Text style={styles.launchLoadingText}>Loading your rituals...</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+function RitualsMark({
+  size,
+  color,
+  mode,
+  reduceMotion,
+  style,
+}: {
+  size: number;
+  color: string;
+  mode: 'launch' | 'spinner' | 'static';
+  reduceMotion: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const circleDash = useRef(new Animated.Value(mode === 'launch' && !reduceMotion ? 430 : 0)).current;
+  const coilLongDash = useRef(new Animated.Value(mode === 'launch' && !reduceMotion ? 520 : 0)).current;
+  const coilStubDash = useRef(new Animated.Value(mode === 'launch' && !reduceMotion ? 90 : 0)).current;
+  const waveDash = useRef(new Animated.Value(mode === 'launch' && !reduceMotion ? 190 : 0)).current;
+  const dotOpacity = useRef(new Animated.Value(mode === 'launch' && !reduceMotion ? 0 : 1)).current;
+  const breathe = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    circleDash.stopAnimation();
+    coilLongDash.stopAnimation();
+    coilStubDash.stopAnimation();
+    waveDash.stopAnimation();
+    dotOpacity.stopAnimation();
+    breathe.stopAnimation();
+
+    if (reduceMotion || mode === 'static') {
+      circleDash.setValue(0);
+      coilLongDash.setValue(0);
+      coilStubDash.setValue(0);
+      waveDash.setValue(0);
+      dotOpacity.setValue(1);
+      breathe.setValue(1);
+      return undefined;
+    }
+
+    const flowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(waveDash, {
+          toValue: -6,
+          duration: 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(waveDash, {
+          toValue: 0,
+          duration: 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+
+    if (mode === 'spinner') {
+      circleDash.setValue(0);
+      coilLongDash.setValue(0);
+      coilStubDash.setValue(0);
+      waveDash.setValue(0);
+      dotOpacity.setValue(1);
+      flowLoop.start();
+      return () => flowLoop.stop();
+    }
+
+    circleDash.setValue(430);
+    coilLongDash.setValue(520);
+    coilStubDash.setValue(90);
+    waveDash.setValue(190);
+    dotOpacity.setValue(0);
+    breathe.setValue(1);
+
+    const draw = Animated.parallel([
+      Animated.timing(circleDash, {
+        toValue: 0,
+        duration: 900,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: false,
+      }),
+      Animated.timing(coilLongDash, {
+        toValue: 0,
+        delay: 250,
+        duration: 800,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: false,
+      }),
+      Animated.timing(coilStubDash, {
+        toValue: 0,
+        delay: 950,
+        duration: 400,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: false,
+      }),
+      Animated.timing(waveDash, {
+        toValue: 0,
+        delay: 700,
+        duration: 900,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: false,
+      }),
+      Animated.timing(dotOpacity, {
+        toValue: 1,
+        delay: 1550,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    const breatheLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathe, {
+          toValue: 1.035,
+          duration: 1800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(breathe, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    draw.start(() => {
+      flowLoop.start();
+      breatheLoop.start();
+    });
+
+    return () => {
+      flowLoop.stop();
+      breatheLoop.stop();
+    };
+  }, [breathe, circleDash, coilLongDash, coilStubDash, dotOpacity, mode, reduceMotion, waveDash]);
+
+  return (
+    <Animated.View style={[{ width: size, height: Math.round(size * 1.07), transform: [{ scale: breathe }] }, style]}>
+      <Svg width="100%" height="100%" viewBox="0 0 200 214" fill="none">
+        <AnimatedPath
+          d="M 83,27 A 82,82 0 1 1 72,184"
+          stroke={color}
+          strokeWidth="7"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={520}
+          strokeDashoffset={coilLongDash as unknown as number}
+        />
+        <AnimatedPath
+          d="M 65,181 A 82,82 0 0 1 35,158"
+          stroke={color}
+          strokeWidth="7"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={90}
+          strokeDashoffset={coilStubDash as unknown as number}
+        />
+        <AnimatedCircle
+          cx="100"
+          cy="107"
+          r="68"
+          stroke={color}
+          strokeWidth="7"
+          fill="none"
+          strokeDasharray={430}
+          strokeDashoffset={circleDash as unknown as number}
+        />
+        <AnimatedPath
+          d="M 40,107 C 60,80 80,80 100,107 C 120,134 140,134 160,107"
+          stroke={color}
+          strokeWidth="7"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={190}
+          strokeDashoffset={waveDash as unknown as number}
+        />
+        <AnimatedCircle cx="40" cy="107" r="5" fill={color} opacity={dotOpacity as unknown as number} />
+        <AnimatedCircle cx="160" cy="107" r="5" fill={color} opacity={dotOpacity as unknown as number} />
+      </Svg>
+    </Animated.View>
+  );
+}
 
 function AuthenticatedApp() {
   const [ready, setReady] = useState(false);
@@ -3010,9 +3324,11 @@ function TodayScreen({
   onOpenProfile: () => void;
 }) {
   const now = useMinuteNow();
-  const todayLabel = useMemo(() => `${formatTodayLabel(now)} - ${formatClockTime(now)}`, [now]);
+  const todayLabel = useMemo(() => formatLiveDateTime(now), [now]);
   const [themeOverride, setThemeOverride] = useState<HeroThemeKey | null>(null);
   const [activeThemeKey, setActiveThemeKey] = useState<HeroThemeKey>(() => getHeroThemeKey());
+  const [activeMetricId, setActiveMetricId] = useState<HeaderMetric['id'] | null>(null);
+  const headerMetrics = useMemo(() => derivedHeaderMetrics(rituals), [rituals]);
   const statusRows = useMemo(
     () =>
       rituals.map((ritual) => ({
@@ -3053,9 +3369,17 @@ function TodayScreen({
 
     const syncAutoTheme = () => setActiveThemeKey(getHeroThemeKey());
     syncAutoTheme();
-    const timer = setInterval(syncAutoTheme, 180000);
+    const timer = setInterval(syncAutoTheme, 30000);
     return () => clearInterval(timer);
   }, [themeOverride]);
+
+  useEffect(() => {
+    if (!activeMetricId) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setActiveMetricId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [activeMetricId]);
 
   const selectThemeOverride = (nextTheme: HeroThemeKey | null) => {
     setThemeOverride(nextTheme);
@@ -3073,14 +3397,14 @@ function TodayScreen({
           <LogoMark size={42} reduceMotion={reduceMotion} style={styles.logoMarkInline} />
         </Pressable>
         <View style={styles.greetingBlock}>
-          <Text numberOfLines={1} style={styles.greetingSub}>Today · {todayLabel}</Text>
+          <Text numberOfLines={1} style={styles.greetingSub}>{todayLabel}</Text>
           <Text numberOfLines={1} style={styles.greetingName}>{username}</Text>
         </View>
-        <View style={styles.bellButton}>
-          <Bell size={19} color={colors.ink} strokeWidth={2.3} />
-          <View style={styles.dotBadge} />
-        </View>
+        <HeaderStats metrics={headerMetrics} activeMetricId={activeMetricId} onToggle={setActiveMetricId} />
       </View>
+      {activeMetricId ? (
+        <HeaderMetricTooltip metric={headerMetrics.find((metric) => metric.id === activeMetricId) ?? headerMetrics[0]} />
+      ) : null}
 
       <AdaptiveTodayHero
         doneCount={doneCount}
@@ -3672,6 +3996,7 @@ function ProgressScreen({
   reduceMotion: boolean;
   onSelectRitual: (id: string) => void;
 }) {
+  const [range, setRange] = useState<'week' | 'month'>('week');
   if (!selectedRitual) {
     return (
       <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
@@ -3683,6 +4008,12 @@ function ProgressScreen({
 
   const palette = habitPalette[selectedRitual.paletteKey];
   const weekPercent = percentFromWeekly(selectedRitual.weekly);
+  const monthPercent = selectedRitual.heat.length
+    ? Math.round((selectedRitual.heat.reduce((sum, value) => sum + (value ? 1 : 0), 0) / selectedRitual.heat.length) * 100)
+    : 0;
+  const rangePercent = range === 'week' ? weekPercent : monthPercent;
+  const combinedHeat = combinedHeatFromRituals(rituals);
+  const activeCount = Math.max(1, totalActiveRituals || rituals.length);
 
   return (
     <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
@@ -3717,38 +4048,69 @@ function ProgressScreen({
         <View style={styles.weekHead}>
           <Text style={styles.weekTitle}>{selectedRitual.name}</Text>
           <View style={styles.pillPct}>
-            <Text style={styles.pillPctText}>{weekPercent}%</Text>
+            <Text style={styles.pillPctText}>{rangePercent}%</Text>
           </View>
         </View>
-        <Text style={styles.weekSub}>This week's completions</Text>
-        <View style={styles.bars}>
-          {selectedRitual.weekly.map((done, index) => (
-            <BarColumn
-              key={`${selectedRitual.id}-${index}`}
-              day={weekLabels[index]}
-              filled={done > 0}
-              height={done > 0 ? 70 : 6}
-              palette={palette}
-              delay={index * 55}
-              reduceMotion={reduceMotion}
-              trigger={selectedRitual.id}
-            />
+        <View style={styles.rangeToggle}>
+          {(['week', 'month'] as const).map((option) => (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityState={{ selected: range === option }}
+              onPress={() => setRange(option)}
+              style={[styles.rangeToggleOption, range === option && { backgroundColor: palette.a }]}
+            >
+              <Text style={[styles.rangeToggleText, range === option && styles.rangeToggleTextActive]}>
+                {option === 'week' ? 'This Week' : 'This Month'}
+              </Text>
+            </Pressable>
           ))}
         </View>
+        <Text style={styles.weekSub}>{range === 'week' ? "This week's completions" : 'Last 30 days by date'}</Text>
+        {range === 'week' ? (
+          <View style={styles.bars}>
+            {selectedRitual.weekly.map((done, index) => (
+              <BarColumn
+                key={`${selectedRitual.id}-${index}`}
+                day={weekLabels[index]}
+                filled={done > 0}
+                height={done > 0 ? 70 : 6}
+                palette={palette}
+                delay={index * 55}
+                reduceMotion={reduceMotion}
+                trigger={`${selectedRitual.id}-${range}`}
+              />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.monthGrid}>
+            {selectedRitual.heat.map((done, index) => (
+              <HeatCell
+                key={`${selectedRitual.id}-month-${index}`}
+                intensity={done ? 1 : 0}
+                newest={index === selectedRitual.heat.length - 1}
+                palette={palette}
+                delay={index * 14}
+                reduceMotion={reduceMotion}
+                trigger={`${selectedRitual.id}-${range}`}
+              />
+            ))}
+          </View>
+        )}
       </GradientCard>
 
       <GradientCard style={styles.heatCard}>
         <Text style={styles.weekTitle}>Completion heat</Text>
         <View style={styles.heatGrid}>
-          {selectedRitual.heat.map((done, index) => (
+          {combinedHeat.map((done, index) => (
             <HeatCell
-              key={`${selectedRitual.id}-heat-${index}`}
-              active={done > 0}
-              newest={index === selectedRitual.heat.length - 1}
+              key={`overall-heat-${index}`}
+              intensity={done / activeCount}
+              newest={index === combinedHeat.length - 1}
               palette={palette}
               delay={index * 18}
               reduceMotion={reduceMotion}
-              trigger={selectedRitual.id}
+              trigger={`${rituals.map((ritual) => ritual.id).join('-')}-${done}`}
             />
           ))}
         </View>
@@ -4414,17 +4776,53 @@ function GradientCard({ children, style }: { children: ReactNode; style?: object
 
 function ScreenHeader({ title, icon: Icon }: { title: string; icon: IconComponent }) {
   const now = useMinuteNow();
-  const todayLabel = useMemo(() => `${formatTodayLabel(now)} - ${formatClockTime(now)}`, [now]);
+  const todayLabel = useMemo(() => formatLiveDateTime(now), [now]);
 
   return (
     <View style={styles.topRow}>
       <View style={styles.screenHeaderCopy}>
         <Text style={styles.screenTitle}>{title}</Text>
-        <Text numberOfLines={1} style={styles.screenHeaderSub}>Today - {todayLabel}</Text>
+        <Text numberOfLines={1} style={styles.screenHeaderSub}>{todayLabel}</Text>
       </View>
       <View style={styles.bellButton}>
         <Icon size={19} color={colors.ink} strokeWidth={2.3} />
       </View>
+    </View>
+  );
+}
+
+function HeaderStats({
+  metrics,
+  activeMetricId,
+  onToggle,
+}: {
+  metrics: HeaderMetric[];
+  activeMetricId: HeaderMetric['id'] | null;
+  onToggle: (id: HeaderMetric['id'] | null) => void;
+}) {
+  return (
+    <View style={styles.headerStatsRow}>
+      {metrics.map((metric) => (
+        <Pressable
+          key={metric.id}
+          accessibilityRole="button"
+          accessibilityLabel={metric.label}
+          onPress={() => onToggle(activeMetricId === metric.id ? null : metric.id)}
+          style={[styles.headerStatPill, activeMetricId === metric.id && { borderColor: metric.color }]}
+        >
+          <Text style={styles.headerStatIcon}>{metric.icon}</Text>
+          <CountUpText value={metric.value} trigger={`${metric.id}-${metric.value}`} style={styles.headerStatValue} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function HeaderMetricTooltip({ metric }: { metric: HeaderMetric }) {
+  return (
+    <View style={styles.headerTooltip}>
+      <Text style={[styles.headerTooltipIcon, { color: metric.color }]}>{metric.icon}</Text>
+      <Text style={styles.headerTooltipText}>{metric.label}</Text>
     </View>
   );
 }
@@ -4508,14 +4906,14 @@ function BarColumn({
 }
 
 function HeatCell({
-  active,
+  intensity,
   newest,
   palette,
   delay,
   reduceMotion,
   trigger,
 }: {
-  active: boolean;
+  intensity: number;
   newest: boolean;
   palette: HabitPalette;
   delay: number;
@@ -4535,6 +4933,10 @@ function HeatCell({
     }).start();
   }, [delay, progress, reduceMotion, trigger]);
 
+  const bucket = clamp(Math.ceil(intensity * 4), 0, 4);
+  const active = bucket > 0;
+  const activeColor = ['rgba(120,140,180,0.12)', `${palette.a}24`, `${palette.a}44`, `${palette.a}66`, palette.a][bucket];
+
   return (
     <Animated.View
       style={[
@@ -4542,7 +4944,7 @@ function HeatCell({
         {
           opacity: progress,
           transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }],
-          backgroundColor: active ? `${palette.a}2E` : 'rgba(120,140,180,0.12)',
+          backgroundColor: activeColor,
         },
       ]}
     >
@@ -5421,6 +5823,63 @@ const styles = StyleSheet.create({
   loadingRoot: {
     flex: 1,
     backgroundColor: colors.page,
+  },
+  launchSplash: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 100,
+    elevation: 100,
+    backgroundColor: '#0B1330',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchSkip: {
+    position: 'absolute',
+    top: 24,
+    right: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  launchSkipText: {
+    fontFamily: fontBodyBold,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.56)',
+  },
+  launchMarkWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchCopy: {
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  launchTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 30,
+    color: '#F4F8FF',
+  },
+  launchTagline: {
+    fontFamily: fontBodyBold,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: '#8FA0C4',
+    marginTop: 8,
+  },
+  launchLoadingRow: {
+    position: 'absolute',
+    bottom: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  launchLoadingText: {
+    fontFamily: fontBodyBold,
+    fontSize: 11,
+    color: '#7C8AA6',
   },
   stage: {
     flex: 1,
@@ -6459,6 +6918,65 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: colors.ink,
   },
+  headerStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    flexShrink: 0,
+  },
+  headerStatPill: {
+    minWidth: 56,
+    height: 38,
+    borderRadius: 18,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.82)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    shadowColor: '#4060A0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  headerStatIcon: {
+    fontSize: 13,
+  },
+  headerStatValue: {
+    fontFamily: fontSerifBold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  headerTooltip: {
+    alignSelf: 'flex-end',
+    maxWidth: 260,
+    borderRadius: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginTop: -4,
+    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.14)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    ...shadow,
+  },
+  headerTooltipIcon: {
+    fontSize: 14,
+  },
+  headerTooltipText: {
+    flex: 1,
+    fontFamily: fontBodySemi,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: colors.ink,
+  },
   heroHead: {
     textAlign: 'center',
     fontFamily: fontBody,
@@ -6919,6 +7437,29 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     marginBottom: 14,
   },
+  rangeToggle: {
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(120,140,180,0.12)',
+    padding: 3,
+    marginBottom: 12,
+    flexDirection: 'row',
+  },
+  rangeToggleOption: {
+    flex: 1,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+  },
+  rangeToggleText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+  },
+  rangeToggleTextActive: {
+    color: '#FFFFFF',
+  },
   bars: {
     height: 90,
     flexDirection: 'row',
@@ -6947,6 +7488,13 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 18,
     marginBottom: 16,
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    minHeight: 164,
+    alignContent: 'flex-start',
   },
   heatGrid: {
     flexDirection: 'row',
