@@ -1,8 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-const appJson = require('./app.json');
-
 function readLocalEnv() {
   const envPath = path.join(__dirname, '.env');
   if (!fs.existsSync(envPath)) {
@@ -24,7 +22,7 @@ function readLocalEnv() {
 
 const localEnv = readLocalEnv();
 
-module.exports = () => {
+module.exports = ({ config }) => {
   const supabaseUrl =
     process.env.EXPO_PUBLIC_SUPABASE_URL ||
     process.env.VITE_SUPABASE_URL ||
@@ -39,9 +37,9 @@ module.exports = () => {
     localEnv.VITE_SUPABASE_PUBLISHABLE_KEY;
 
   return {
-    ...appJson.expo,
+    ...config,
     extra: {
-      ...appJson.expo.extra,
+      ...config.extra,
       supabaseUrl,
       supabaseAnonKey,
     },
