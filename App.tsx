@@ -79,6 +79,7 @@ import {
   MapPin,
   MessageCircle,
   Moon,
+  Pencil,
   Phone,
   Plus,
   Send,
@@ -86,11 +87,12 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  Trash2,
   User,
   Zap,
 } from 'lucide-react-native';
 import React, { ComponentType, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createClient, processLock, User as SupabaseUser } from '@supabase/supabase-js';
+import { createClient, User as SupabaseUser } from '@supabase/supabase-js';
 
 type TabKey = 'today' | 'progress' | 'insights' | 'profile';
 type PaletteKey =
@@ -307,6 +309,14 @@ const ASK_FLO_HEIGHT = 48;
 const ASK_FLO_EDGE_PADDING = 16;
 const ASK_FLO_NAV_GAP = 22;
 const ASK_FLO_TAP_THRESHOLD = 6;
+const TABLET_MIN_WIDTH = 720;
+const WIDE_TABLET_MIN_WIDTH = 900;
+const AUTH_SINGLE_MAX_WIDTH = 600;
+const AUTH_SPLIT_MAX_WIDTH = 1040;
+const PROFILE_SETUP_MAX_WIDTH = 720;
+const APP_CONTENT_MAX_WIDTH = 1040;
+const NAV_TABLET_MAX_WIDTH = 680;
+const SHEET_TABLET_MAX_WIDTH = 680;
 const DEFAULT_AUTH_ACCOUNT: AuthAccount = {
   username: 'Pratik',
   password: 'Pratik@16',
@@ -324,6 +334,10 @@ const fontBodyExtra = 'Inter_800ExtraBold';
 const fontSerif = 'Fraunces_500Medium';
 const fontSerifSemi = 'Fraunces_600SemiBold';
 const fontSerifBold = 'Fraunces_700Bold';
+
+function responsiveMaxWidth(width: number, maxWidth: number, horizontalPadding: number) {
+  return Math.min(maxWidth, Math.max(0, width - horizontalPadding * 2));
+}
 
 const colors = {
   page: '#E7EDF5',
@@ -350,7 +364,6 @@ const supabase = supabaseUrl && supabaseAnonKey
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
-        lock: processLock,
       },
     })
   : null;
@@ -1710,7 +1723,7 @@ function AuthGate({
   onResetPassword: (account: AuthAccount) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<AuthMode>('signIn');
   const [identifier, setIdentifier] = useState('');
@@ -1725,7 +1738,19 @@ function AuthGate({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const cardAnim = useEntranceAnimation(mode, reduceMotion);
-  const contentMaxWidth = width >= 720 ? 440 : undefined;
+  const isTablet = width >= TABLET_MIN_WIDTH;
+  const useSplitAuthLayout = width >= WIDE_TABLET_MIN_WIDTH && width > height;
+  const authHorizontalPadding = isTablet ? 28 : 20;
+  const authTopPadding = Math.max(insets.top + (useSplitAuthLayout ? 16 : 0), useSplitAuthLayout ? 24 : 10);
+  const authBottomPadding = Math.max(insets.bottom + 34, useSplitAuthLayout ? 28 : 34);
+  const contentMaxWidth = useSplitAuthLayout
+    ? responsiveMaxWidth(width, AUTH_SPLIT_MAX_WIDTH, authHorizontalPadding)
+    : isTablet
+      ? responsiveMaxWidth(width, AUTH_SINGLE_MAX_WIDTH, authHorizontalPadding)
+      : undefined;
+  const authPanelMinHeight = useSplitAuthLayout
+    ? Math.max(500, Math.min(640, height - authTopPadding - authBottomPadding))
+    : undefined;
   const emailIsInvalid = email.length > 0 && !isValidEmail(email);
   const strength = getPasswordStrength(password);
 
@@ -1933,9 +1958,11 @@ function AuthGate({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.authScroll,
+              useSplitAuthLayout && styles.authScrollSplit,
               {
-                paddingTop: Math.max(insets.top, 10),
-                paddingBottom: insets.bottom + 34,
+                paddingTop: authTopPadding,
+                paddingBottom: authBottomPadding,
+                paddingHorizontal: authHorizontalPadding,
                 maxWidth: contentMaxWidth,
               },
             ]}
@@ -1946,159 +1973,170 @@ function AuthGate({
               </PressScale>
             ) : null}
 
-            <AuthHero mode={mode} reduceMotion={reduceMotion} />
+            <View style={[styles.authPanel, useSplitAuthLayout && styles.authPanelSplit, authPanelMinHeight ? { minHeight: authPanelMinHeight } : null]}>
+              <View style={useSplitAuthLayout && styles.authHeroPane}>
+                <AuthHero mode={mode} reduceMotion={reduceMotion} split={useSplitAuthLayout} />
+              </View>
 
-            <Animated.View style={[styles.authCardWrap, cardAnim]}>
-              <GradientCard style={[styles.authCard, isCreate && styles.authCardCreate]}>
-                {isCreate ? (
-                  <>
-                    <AuthInput
-                      icon={User}
-                      label="Username"
-                      value={fullName}
-                      onChangeText={(value) => {
-                        setFullName(value);
-                        clearFeedback();
-                      }}
-                      placeholder="Pratik"
-                      returnKeyType="next"
-                    />
-                    <AuthInput
-                      icon={Mail}
-                      label="Email"
-                      value={email}
-                      onChangeText={(value) => {
-                        setEmail(value);
-                        clearFeedback();
-                      }}
-                      placeholder="you@rituals.app"
-                      keyboardType="email-address"
-                      returnKeyType="next"
-                      error={emailIsInvalid}
-                      helperText={emailIsInvalid ? 'Enter a valid email address' : undefined}
-                    />
-                    <AuthInput
-                      icon={Lock}
-                      label="Password"
-                      value={password}
-                      onChangeText={(value) => {
-                        setPassword(value);
-                        clearFeedback();
-                      }}
-                      placeholder="Create a password"
-                      secureTextEntry={!passwordVisible}
-                      trailing={(
-                        <Pressable accessibilityRole="button" onPress={() => setPasswordVisible((current) => !current)} hitSlop={8}>
-                          {passwordVisible ? <EyeOff size={18} color={colors.inkFaint} /> : <Eye size={18} color={colors.inkFaint} />}
-                        </Pressable>
-                      )}
-                    />
-                    <PasswordStrengthMeter strength={strength} />
-                    <TermsAgreement
-                      checked={termsAccepted}
-                      onToggle={() => {
-                        setTermsAccepted((current) => !current);
-                        clearFeedback();
-                      }}
-                      onOpenTerms={() => setMessage('Terms of Service will open after the policy screen is connected.')}
-                      onOpenPrivacy={() => setMessage('Privacy Policy will open after the policy screen is connected.')}
-                      required={!termsAccepted && Boolean(error)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.authCardTitle}>{isReset ? 'Reset password' : 'Welcome back'}</Text>
-                    <Text style={styles.authCardSub}>{isReset ? 'Send a reset link to your Supabase account email' : 'Sign in to keep your streaks flowing'}</Text>
-                    <AuthInput
-                      icon={Mail}
-                      label="Email or username"
-                      value={identifier}
-                      onChangeText={(value) => {
-                        setIdentifier(value);
-                        clearFeedback();
-                      }}
-                      placeholder="Pratik or pratik@rituals.app"
-                      returnKeyType="next"
-                    />
-                    {isReset && usesSupabaseAuth ? null : (
+              <Animated.View style={[styles.authCardWrap, useSplitAuthLayout && styles.authCardWrapSplit, cardAnim]}>
+                <GradientCard
+                  style={[
+                    styles.authCard,
+                    isTablet && styles.authCardTablet,
+                    isCreate && styles.authCardCreate,
+                    useSplitAuthLayout && isCreate && styles.authCardCreateSplit,
+                  ]}
+                >
+                  {isCreate ? (
+                    <>
+                      <AuthInput
+                        icon={User}
+                        label="Username"
+                        value={fullName}
+                        onChangeText={(value) => {
+                          setFullName(value);
+                          clearFeedback();
+                        }}
+                        placeholder="Pratik"
+                        returnKeyType="next"
+                      />
+                      <AuthInput
+                        icon={Mail}
+                        label="Email"
+                        value={email}
+                        onChangeText={(value) => {
+                          setEmail(value);
+                          clearFeedback();
+                        }}
+                        placeholder="you@rituals.app"
+                        keyboardType="email-address"
+                        returnKeyType="next"
+                        error={emailIsInvalid}
+                        helperText={emailIsInvalid ? 'Enter a valid email address' : undefined}
+                      />
                       <AuthInput
                         icon={Lock}
-                        label={isReset ? 'New password' : 'Password'}
+                        label="Password"
                         value={password}
                         onChangeText={(value) => {
                           setPassword(value);
                           clearFeedback();
                         }}
-                        placeholder={isReset ? 'Minimum 6 characters' : 'Enter your password'}
+                        placeholder="Create a password"
                         secureTextEntry={!passwordVisible}
-                        returnKeyType={isReset ? 'next' : 'done'}
-                        onSubmitEditing={isReset ? undefined : submit}
                         trailing={(
                           <Pressable accessibilityRole="button" onPress={() => setPasswordVisible((current) => !current)} hitSlop={8}>
                             {passwordVisible ? <EyeOff size={18} color={colors.inkFaint} /> : <Eye size={18} color={colors.inkFaint} />}
                           </Pressable>
                         )}
                       />
-                    )}
-                    {isReset && !usesSupabaseAuth ? (
-                      <AuthInput
-                        icon={Lock}
-                        label="Confirm password"
-                        value={confirmPassword}
-                        onChangeText={(value) => {
-                          setConfirmPassword(value);
+                      <PasswordStrengthMeter strength={strength} />
+                      <TermsAgreement
+                        checked={termsAccepted}
+                        onToggle={() => {
+                          setTermsAccepted((current) => !current);
                           clearFeedback();
                         }}
-                        placeholder="Re-enter password"
-                        secureTextEntry={!passwordVisible}
-                        returnKeyType="done"
-                        onSubmitEditing={submit}
+                        onOpenTerms={() => setMessage('Terms of Service will open after the policy screen is connected.')}
+                        onOpenPrivacy={() => setMessage('Privacy Policy will open after the policy screen is connected.')}
+                        required={!termsAccepted && Boolean(error)}
                       />
-                    ) : (
-                      <View style={styles.authBetweenRow}>
-                        <CheckLine checked={rememberMe} onPress={() => setRememberMe((current) => !current)} label="Remember me" compact />
-                        <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')}>
-                          <Text style={styles.authInlineLink}>Forgot password?</Text>
-                        </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.authCardTitle}>{isReset ? 'Reset password' : 'Welcome back'}</Text>
+                      <Text style={styles.authCardSub}>{isReset ? 'Send a reset link to your Supabase account email' : 'Sign in to keep your streaks flowing'}</Text>
+                      <AuthInput
+                        icon={Mail}
+                        label="Email or username"
+                        value={identifier}
+                        onChangeText={(value) => {
+                          setIdentifier(value);
+                          clearFeedback();
+                        }}
+                        placeholder="Pratik or pratik@rituals.app"
+                        returnKeyType="next"
+                      />
+                      {isReset && usesSupabaseAuth ? null : (
+                        <AuthInput
+                          icon={Lock}
+                          label={isReset ? 'New password' : 'Password'}
+                          value={password}
+                          onChangeText={(value) => {
+                            setPassword(value);
+                            clearFeedback();
+                          }}
+                          placeholder={isReset ? 'Minimum 6 characters' : 'Enter your password'}
+                          secureTextEntry={!passwordVisible}
+                          returnKeyType={isReset ? 'next' : 'done'}
+                          onSubmitEditing={isReset ? undefined : submit}
+                          trailing={(
+                            <Pressable accessibilityRole="button" onPress={() => setPasswordVisible((current) => !current)} hitSlop={8}>
+                              {passwordVisible ? <EyeOff size={18} color={colors.inkFaint} /> : <Eye size={18} color={colors.inkFaint} />}
+                            </Pressable>
+                          )}
+                        />
+                      )}
+                      {isReset && !usesSupabaseAuth ? (
+                        <AuthInput
+                          icon={Lock}
+                          label="Confirm password"
+                          value={confirmPassword}
+                          onChangeText={(value) => {
+                            setConfirmPassword(value);
+                            clearFeedback();
+                          }}
+                          placeholder="Re-enter password"
+                          secureTextEntry={!passwordVisible}
+                          returnKeyType="done"
+                          onSubmitEditing={submit}
+                        />
+                      ) : (
+                        <View style={styles.authBetweenRow}>
+                          <CheckLine checked={rememberMe} onPress={() => setRememberMe((current) => !current)} label="Remember me" compact />
+                          <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')}>
+                            <Text style={styles.authInlineLink}>Forgot password?</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </>
+                  )}
+
+                  {error ? <Text style={styles.authError}>{error}</Text> : null}
+                  {message ? <Text style={styles.authMessage}>{message}</Text> : null}
+
+                  <PressScale reduceMotion={reduceMotion} onPress={submit} style={styles.authPrimaryButton}>
+                    <Text style={styles.authPrimaryText}>
+                      {submitting ? 'Please wait' : isCreate ? 'Create account' : isReset ? usesSupabaseAuth ? 'Send reset link' : 'Update password' : 'Sign in'}
+                    </Text>
+                    <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.7} />
+                  </PressScale>
+
+                  {!isReset ? (
+                    <>
+                      <View style={styles.authDivider}>
+                        <View style={styles.authDividerLine} />
+                        <Text style={styles.authDividerText}>{isCreate ? 'or sign up with' : 'or continue with'}</Text>
+                        <View style={styles.authDividerLine} />
                       </View>
-                    )}
-                  </>
-                )}
+                      <View style={styles.authSocialRow}>
+                        <SocialButton label="Google" reduceMotion={reduceMotion} onPress={() => setMessage('Google sign-in will connect after Supabase Auth setup.')} />
+                        <SocialButton label="Apple" reduceMotion={reduceMotion} onPress={() => setMessage('Apple sign-in will connect after Supabase Auth setup.')} />
+                      </View>
+                    </>
+                  ) : null}
 
-                {error ? <Text style={styles.authError}>{error}</Text> : null}
-                {message ? <Text style={styles.authMessage}>{message}</Text> : null}
-
-                <PressScale reduceMotion={reduceMotion} onPress={submit} style={styles.authPrimaryButton}>
-                  <Text style={styles.authPrimaryText}>
-                    {submitting ? 'Please wait' : isCreate ? 'Create account' : isReset ? usesSupabaseAuth ? 'Send reset link' : 'Update password' : 'Sign in'}
-                  </Text>
-                  <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.7} />
-                </PressScale>
-
-                {!isReset ? (
-                  <>
-                    <View style={styles.authDivider}>
-                      <View style={styles.authDividerLine} />
-                      <Text style={styles.authDividerText}>{isCreate ? 'or sign up with' : 'or continue with'}</Text>
-                      <View style={styles.authDividerLine} />
-                    </View>
-                    <View style={styles.authSocialRow}>
-                      <SocialButton label="Google" reduceMotion={reduceMotion} onPress={() => setMessage('Google sign-in will connect after Supabase Auth setup.')} />
-                      <SocialButton label="Apple" reduceMotion={reduceMotion} onPress={() => setMessage('Apple sign-in will connect after Supabase Auth setup.')} />
-                    </View>
-                  </>
-                ) : null}
-
-                <View style={styles.authFooterLine}>
-                  <Text style={styles.authFooterMuted}>
-                    {isCreate || isReset ? 'Already have an account? ' : 'New to Rituals? '}
-                  </Text>
-                  <Pressable accessibilityRole="button" onPress={() => switchMode(isCreate || isReset ? 'signIn' : 'createAccount')}>
-                    <Text style={styles.authFooterLink}>{isCreate || isReset ? 'Sign in' : 'Create account'}</Text>
-                  </Pressable>
-                </View>
-              </GradientCard>
-            </Animated.View>
+                  <View style={styles.authFooterLine}>
+                    <Text style={styles.authFooterMuted}>
+                      {isCreate || isReset ? 'Already have an account? ' : 'New to Rituals? '}
+                    </Text>
+                    <Pressable accessibilityRole="button" onPress={() => switchMode(isCreate || isReset ? 'signIn' : 'createAccount')}>
+                      <Text style={styles.authFooterLink}>{isCreate || isReset ? 'Sign in' : 'Create account'}</Text>
+                    </Pressable>
+                  </View>
+                </GradientCard>
+              </Animated.View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
@@ -2133,7 +2171,11 @@ function ProfileSetupScreen({
   const [habitFocus, setHabitFocus] = useState(account.habitFocus || '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const contentMaxWidth = width >= 720 ? 440 : undefined;
+  const isTablet = width >= TABLET_MIN_WIDTH;
+  const profileHorizontalPadding = isTablet ? 28 : 20;
+  const contentMaxWidth = isTablet
+    ? responsiveMaxWidth(width, PROFILE_SETUP_MAX_WIDTH, profileHorizontalPadding)
+    : undefined;
   const parsedAge = Number(age);
   const nameValid = name.trim().length >= 2;
   const ageValid = Number.isInteger(parsedAge) && parsedAge >= 13 && parsedAge <= 120;
@@ -2198,6 +2240,7 @@ function ProfileSetupScreen({
               {
                 paddingTop: Math.max(insets.top + 10, 22),
                 paddingBottom: insets.bottom + 34,
+                paddingHorizontal: profileHorizontalPadding,
                 maxWidth: contentMaxWidth,
               },
             ]}
@@ -2536,15 +2579,18 @@ function getPasswordStrength(value: string) {
   return { score: 3, label: 'Strong password', color: habitPalette.food.a };
 }
 
-function AuthHero({ mode, reduceMotion }: { mode: AuthMode; reduceMotion: boolean }) {
+function AuthHero({ mode, reduceMotion, split = false }: { mode: AuthMode; reduceMotion: boolean; split?: boolean }) {
   const isCreate = mode === 'createAccount';
+  const compact = (isCreate || mode === 'forgot') && !split;
   return (
-    <View style={[styles.authHero, isCreate && styles.authHeroCompact]}>
-      <AnimatedWaveBackground reduceMotion={reduceMotion} compact={isCreate || mode === 'forgot'} />
-      <View style={styles.authHeroContent}>
-        <LogoMark size={isCreate || mode === 'forgot' ? 52 : 64} reduceMotion={reduceMotion} />
-        <Text style={isCreate ? styles.authCreateTitle : styles.authWordmark}>{isCreate ? 'Start your ritual' : 'Rituals'}</Text>
-        <Text style={styles.authHeroSubtitle}>
+    <View style={[styles.authHero, compact && styles.authHeroCompact, split && styles.authHeroSplit]}>
+      <AnimatedWaveBackground reduceMotion={reduceMotion} compact={compact} />
+      <View style={[styles.authHeroContent, split && styles.authHeroContentSplit]}>
+        <LogoMark size={split ? 78 : compact ? 52 : 64} reduceMotion={reduceMotion} />
+        <Text style={[isCreate ? styles.authCreateTitle : styles.authWordmark, split && styles.authHeroTitleSplit]}>
+          {isCreate ? 'Start your ritual' : 'Rituals'}
+        </Text>
+        <Text style={[styles.authHeroSubtitle, split && styles.authHeroSubtitleSplit]}>
           {isCreate ? 'Create an account to build streaks that stick' : mode === 'forgot' ? 'Reset your ritual flow' : 'Small rituals. Steady flow.'}
         </Text>
       </View>
@@ -2912,12 +2958,14 @@ function FlowApp({
   const [insight, setInsight] = useState(defaultState.insight);
   const [selectedRitualId, setSelectedRitualId] = useState(defaultState.rituals[0]?.id ?? '');
   const [addOpen, setAddOpen] = useState(false);
+  const [editingRitualId, setEditingRitualId] = useState<string | null>(null);
   const [coachOpen, setCoachOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [particles, setParticles] = useState<BurstParticle[]>([]);
   const [newRitualId, setNewRitualId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const isTablet = width >= 720;
+  const isTablet = width >= TABLET_MIN_WIDTH;
+  const appHorizontalPadding = isTablet ? 28 : 20;
   const storageKey = useMemo(() => (userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY), [userId]);
 
   useEffect(() => {
@@ -3006,6 +3054,7 @@ function FlowApp({
   );
   const heroPercent = totalActiveRituals ? Math.round((doneCount / totalActiveRituals) * 100) : 0;
   const selectedRitual = rituals.find((ritual) => ritual.id === selectedRitualId) ?? rituals[0];
+  const editingRitual = editingRitualId ? rituals.find((ritual) => ritual.id === editingRitualId) ?? null : null;
 
   useEffect(() => {
     if (!selectedRitual && rituals[0]) {
@@ -3150,8 +3199,9 @@ function FlowApp({
         .single();
 
       if (insertError || !data) {
-        showToast(`Database save failed: ${insertError?.message ?? 'Unable to add ritual'}`);
-        return;
+        const message = `Database save failed: ${insertError?.message ?? 'Unable to add ritual'}`;
+        showToast(message);
+        throw new Error(message);
       }
 
       id = data.id;
@@ -3182,6 +3232,95 @@ function FlowApp({
     showToast(`✓ ${name} added to your rituals`);
     impact();
     setTimeout(() => setNewRitualId(null), 650);
+  };
+
+  const updateRitual = async (ritualId: string, input: CreateRitualInput) => {
+    const target = rituals.find((ritual) => ritual.id === ritualId);
+    if (!target) {
+      const message = 'Ritual not found';
+      showToast(message);
+      throw new Error(message);
+    }
+
+    const name = input.name.trim();
+    const icon = input.icon;
+    const paletteKey = input.paletteKey;
+    const goalAmount = typeof input.goalAmount === 'number' && Number.isFinite(input.goalAmount) ? input.goalAmount : undefined;
+    const goalUnit = goalAmount && input.goalUnit ? input.goalUnit : undefined;
+    const reminderTime = input.reminderTime;
+
+    if (supabase && userId) {
+      const { error: updateError } = await supabase
+        .from('habits')
+        .update({
+          name,
+          icon,
+          color: paletteToDbColor(paletteKey),
+          palette_key: paletteKey,
+          goal_amount: goalAmount ?? null,
+          goal_unit: goalUnit ?? null,
+          reminder_time: reminderTime ?? null,
+        })
+        .eq('id', ritualId)
+        .eq('user_id', userId);
+
+      if (updateError) {
+        const message = `Database save failed: ${updateError.message}`;
+        showToast(message);
+        throw new Error(message);
+      }
+    }
+
+    setRituals((current) =>
+      current.map((ritual) =>
+        ritual.id === ritualId
+          ? {
+              ...ritual,
+              name,
+              icon,
+              paletteKey,
+              goalAmount,
+              goalUnit,
+              reminderTime,
+            }
+          : ritual,
+      ),
+    );
+    showToast(`${name} updated`);
+    impact();
+  };
+
+  const deleteRitual = async (ritualId: string) => {
+    const target = rituals.find((ritual) => ritual.id === ritualId);
+    if (!target) {
+      const message = 'Ritual not found';
+      showToast(message);
+      throw new Error(message);
+    }
+
+    if (supabase && userId) {
+      const { error: deleteError } = await supabase
+        .from('habits')
+        .update({ is_archived: true })
+        .eq('id', ritualId)
+        .eq('user_id', userId);
+
+      if (deleteError) {
+        const message = `Database delete failed: ${deleteError.message}`;
+        showToast(message);
+        throw new Error(message);
+      }
+    }
+
+    const remainingRituals = rituals.filter((ritual) => ritual.id !== ritualId);
+    setRituals(remainingRituals);
+    setTotalActiveRituals((current) => Math.max(0, current - 1));
+    if (selectedRitualId === ritualId) {
+      setSelectedRitualId(remainingRituals[0]?.id ?? '');
+    }
+    setNewRitualId((current) => (current === ritualId ? null : current));
+    showToast(`${target.name} deleted`);
+    impact();
   };
 
   const updateSetting = (key: keyof FlowSettings, value: boolean) => {
@@ -3221,7 +3360,9 @@ function FlowApp({
   };
 
   const screenStyle = useEntranceAnimation(activeTab, reduceMotion);
-  const contentMaxWidth = isTablet ? 520 : undefined;
+  const contentMaxWidth = isTablet
+    ? responsiveMaxWidth(width, APP_CONTENT_MAX_WIDTH, appHorizontalPadding)
+    : undefined;
 
   return (
     <View style={styles.root}>
@@ -3249,6 +3390,7 @@ function FlowApp({
               newRitualId={newRitualId}
               reduceMotion={reduceMotion}
               onToggleRitual={toggleRitual}
+              onEditRitual={(ritual) => setEditingRitualId(ritual.id)}
               onOpenProfile={() => setActiveTab('profile')}
             />
           ) : null}
@@ -3290,7 +3432,18 @@ function FlowApp({
           onClose={() => setCoachOpen(false)}
           onAddRitual={(name, icon) => addRitual({ name, icon, paletteKey: iconOptionForEmoji(icon).key })}
         />
-        <AddRitualSheet open={addOpen} onClose={() => setAddOpen(false)} onAdd={addRitual} reduceMotion={reduceMotion} />
+        <AddRitualSheet
+          open={addOpen || Boolean(editingRitual)}
+          editingRitual={editingRitual}
+          onClose={() => {
+            setAddOpen(false);
+            setEditingRitualId(null);
+          }}
+          onAdd={addRitual}
+          onUpdate={updateRitual}
+          onDelete={deleteRitual}
+          reduceMotion={reduceMotion}
+        />
         <Toast toast={toast} bottomInset={insets.bottom} reduceMotion={reduceMotion} onDone={clearToast} />
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           {particles.map((particle) => (
@@ -3311,6 +3464,7 @@ function TodayScreen({
   newRitualId,
   reduceMotion,
   onToggleRitual,
+  onEditRitual,
   onOpenProfile,
 }: {
   username: string;
@@ -3321,13 +3475,16 @@ function TodayScreen({
   newRitualId: string | null;
   reduceMotion: boolean;
   onToggleRitual: (id: string, x: number, y: number) => void;
+  onEditRitual: (ritual: Ritual) => void;
   onOpenProfile: () => void;
 }) {
+  const { width } = useWindowDimensions();
   const now = useMinuteNow();
   const todayLabel = useMemo(() => formatLiveDateTime(now), [now]);
   const [themeOverride, setThemeOverride] = useState<HeroThemeKey | null>(null);
   const [activeThemeKey, setActiveThemeKey] = useState<HeroThemeKey>(() => getHeroThemeKey());
   const [activeMetricId, setActiveMetricId] = useState<HeaderMetric['id'] | null>(null);
+  const useTabletGrid = width >= TABLET_MIN_WIDTH;
   const headerMetrics = useMemo(() => derivedHeaderMetrics(rituals), [rituals]);
   const statusRows = useMemo(
     () =>
@@ -3445,6 +3602,8 @@ function TodayScreen({
               ritual={ritual}
               entering={ritual.id === newRitualId}
               reduceMotion={reduceMotion}
+              cellStyle={useTabletGrid && styles.ritualCellTablet}
+              onEdit={onEditRitual}
               onToggle={onToggleRitual}
             />
           ))
@@ -3788,11 +3947,15 @@ function RitualCard({
   ritual,
   entering,
   reduceMotion,
+  cellStyle,
+  onEdit,
   onToggle,
 }: {
   ritual: Ritual;
   entering: boolean;
   reduceMotion: boolean;
+  cellStyle?: StyleProp<ViewStyle>;
+  onEdit: (ritual: Ritual) => void;
   onToggle: (id: string, x: number, y: number) => void;
 }) {
   const palette = habitPalette[ritual.paletteKey];
@@ -3851,6 +4014,7 @@ function RitualCard({
     <Animated.View
       style={[
         styles.ritualCell,
+        cellStyle,
         {
           opacity: enter,
           transform: [
@@ -3900,29 +4064,43 @@ function RitualCard({
               reduceMotion={reduceMotion}
               centerIcon={ritual.icon}
             />
-            <View style={styles.ritualCheckHost}>
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.ritualPulse,
-                  {
-                    borderColor: palette.a,
-                    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.42, 0] }),
-                    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1.9] }) }],
-                  },
-                ]}
-              />
-              <Animated.View style={[styles.ritualCheck, { transform: [{ scale: checkScale }] }]}>
-                {ritual.doneToday ? (
-                  <LinearGradient colors={[palette.a, palette.b]} style={styles.ritualCheckFill}>
-                    <Check size={16} color="#FFFFFF" strokeWidth={3.2} />
-                  </LinearGradient>
-                ) : (
-                  <View style={styles.ritualCheckEmpty}>
-                    <Check size={15} color="#FFFFFF" strokeWidth={3} />
-                  </View>
-                )}
-              </Animated.View>
+            <View style={styles.ritualActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${ritual.name}`}
+                hitSlop={8}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onEdit(ritual);
+                }}
+                style={styles.ritualEditButton}
+              >
+                <Pencil size={14} color={palette.ink} strokeWidth={2.5} />
+              </Pressable>
+              <View style={styles.ritualCheckHost}>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.ritualPulse,
+                    {
+                      borderColor: palette.a,
+                      opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.42, 0] }),
+                      transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1.9] }) }],
+                    },
+                  ]}
+                />
+                <Animated.View style={[styles.ritualCheck, { transform: [{ scale: checkScale }] }]}>
+                  {ritual.doneToday ? (
+                    <LinearGradient colors={[palette.a, palette.b]} style={styles.ritualCheckFill}>
+                      <Check size={16} color="#FFFFFF" strokeWidth={3.2} />
+                    </LinearGradient>
+                  ) : (
+                    <View style={styles.ritualCheckEmpty}>
+                      <Check size={15} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </Animated.View>
+              </View>
             </View>
           </View>
           <View>
@@ -5110,6 +5288,9 @@ function AskFloLauncher({
   onOpen: () => void;
 }) {
   const { width, height } = useWindowDimensions();
+  const compactLauncher = width >= TABLET_MIN_WIDTH;
+  const launcherWidth = compactLauncher ? ASK_FLO_HEIGHT : ASK_FLO_WIDTH;
+  const edgePadding = compactLauncher ? 22 : ASK_FLO_EDGE_PADDING;
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const dragOrigin = useRef({ x: 0, y: 0 });
@@ -5121,13 +5302,13 @@ function AskFloLauncher({
     [userId],
   );
   const bounds = useMemo(() => {
-    const minX = ASK_FLO_EDGE_PADDING;
-    const minY = Math.max(topInset + ASK_FLO_EDGE_PADDING, ASK_FLO_EDGE_PADDING);
-    const maxX = Math.max(minX, width - ASK_FLO_WIDTH - ASK_FLO_EDGE_PADDING);
+    const minX = edgePadding;
+    const minY = Math.max(topInset + edgePadding, edgePadding);
+    const maxX = Math.max(minX, width - launcherWidth - edgePadding);
     const navTop = height - bottomInset - NAV_BOTTOM_OFFSET - NAV_HEIGHT;
     const maxY = Math.max(minY, navTop - ASK_FLO_NAV_GAP - ASK_FLO_HEIGHT);
     return { minX, minY, maxX, maxY };
-  }, [bottomInset, height, topInset, width]);
+  }, [bottomInset, edgePadding, height, launcherWidth, topInset, width]);
 
   const snapToCorner = useCallback((rawX: number, rawY: number) => {
     const clampedX = clamp(rawX, bounds.minX, bounds.maxX);
@@ -5245,12 +5426,12 @@ function AskFloLauncher({
       onHandlerStateChange={handleGestureStateChange}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Reanimated.View style={[styles.askFloLauncher, animatedStyle]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Ask Flo" onPress={handlePress} style={styles.askFloPressable}>
-          <View style={styles.askFloLabel}>
+      <Reanimated.View style={[styles.askFloLauncher, { width: launcherWidth }, animatedStyle]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ask Flo" onPress={handlePress} style={[styles.askFloPressable, { width: launcherWidth }, compactLauncher && styles.askFloPressableCompact]}>
+          <View style={[styles.askFloLabel, compactLauncher && styles.hidden]}>
             <Text style={styles.askFloLabelText}>Ask Flo ✨</Text>
           </View>
-          <LinearGradient colors={[colors.blue1, '#2E8FE8']} start={{ x: 0.15, y: 0 }} end={{ x: 1, y: 1 }} style={styles.askFloButton}>
+          <LinearGradient colors={[colors.blue1, '#2E8FE8']} start={{ x: 0.15, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.askFloButton, compactLauncher && styles.askFloButtonCompact]}>
             <MessageCircle size={21} color="#FFFFFF" strokeWidth={2.4} />
           </LinearGradient>
         </Pressable>
@@ -5273,19 +5454,28 @@ function CoachChatSheet({
   onAddRitual: (name: string, icon: string) => void | Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  const isTablet = width >= TABLET_MIN_WIDTH;
+  const sheetMaxWidth = width >= TABLET_MIN_WIDTH
+    ? responsiveMaxWidth(width, SHEET_TABLET_MAX_WIDTH, 24)
+    : undefined;
+  const sheetHeight = isTablet
+    ? Math.min(640, height - insets.top - insets.bottom - 48)
+    : Math.min(Math.max(520, height * 0.86), height - insets.top - 12);
 
   return (
     <Modal transparent visible={open} animationType="slide" onRequestClose={onClose}>
       <View style={styles.coachSheetRoot}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close Ask Flo" onPress={onClose} style={styles.coachSheetOverlay} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.coachSheetKeyboard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.coachSheetKeyboard, isTablet && styles.coachSheetKeyboardTablet]}>
           <View
             style={[
               styles.coachSheet,
+              isTablet && styles.coachSheetTablet,
               {
-                height: Math.min(Math.max(520, height * 0.86), height - insets.top - 12),
-                maxHeight: height - insets.top - 12,
+                height: sheetHeight,
+                maxHeight: sheetHeight,
+                maxWidth: sheetMaxWidth,
                 paddingBottom: Math.max(insets.bottom, 12) + 12,
               },
             ]}
@@ -5310,8 +5500,13 @@ function BottomNav({
   onChange: (tab: TabKey) => void;
   onAdd: () => void;
 }) {
+  const { width } = useWindowDimensions();
+  const navSideOffset = width >= TABLET_MIN_WIDTH
+    ? Math.max(24, (width - NAV_TABLET_MAX_WIDTH) / 2)
+    : 14;
+
   return (
-    <View style={[styles.navPill, { bottom: bottomInset + NAV_BOTTOM_OFFSET }]}>
+    <View style={[styles.navPill, { bottom: bottomInset + NAV_BOTTOM_OFFSET, left: navSideOffset, right: navSideOffset }]}>
       <NavItem tab="today" label="Today" icon={Home} activeTab={activeTab} onChange={onChange} />
       <NavItem tab="progress" label="Progress" icon={BarChart3} activeTab={activeTab} onChange={onChange} />
       <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={styles.navCenter}>
@@ -5386,17 +5581,24 @@ function RitualPreviewCard({ ritual, reduceMotion }: { ritual: Ritual; reduceMot
 
 function AddRitualSheet({
   open,
+  editingRitual = null,
   onClose,
   onAdd,
+  onUpdate,
+  onDelete,
   reduceMotion,
 }: {
   open: boolean;
+  editingRitual?: Ritual | null;
   onClose: () => void;
   onAdd: (input: CreateRitualInput) => void | Promise<void>;
+  onUpdate?: (ritualId: string, input: CreateRitualInput) => void | Promise<void>;
+  onDelete?: (ritualId: string) => void | Promise<void>;
   reduceMotion: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
+  const isTablet = width >= TABLET_MIN_WIDTH;
   const [mounted, setMounted] = useState(open);
   const [name, setName] = useState('');
   const [selectedIconKey, setSelectedIconKey] = useState<PaletteKey>('water');
@@ -5406,14 +5608,21 @@ function AddRitualSheet({
   const [reminderTime, setReminderTime] = useState<string | undefined>('20:00');
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const overlay = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(420)).current;
+  const isEditing = Boolean(editingRitual);
   const selectedIcon = iconOptionForKey(selectedIconKey);
   const parsedAmount = Number(amount.replace(',', '.'));
   const amountValid = !trackAmount || (Number.isFinite(parsedAmount) && parsedAmount > 0);
   const previewName = name.trim() || 'Evening stretch';
   const previewGoalAmount = trackAmount && amountValid ? parsedAmount : undefined;
-  const sheetMaxWidth = width >= 720 ? 520 : undefined;
+  const sheetMaxWidth = isTablet
+    ? responsiveMaxWidth(width, SHEET_TABLET_MAX_WIDTH, 24)
+    : undefined;
+  const sheetMaxHeight = isTablet
+    ? Math.min(640, height - insets.top - insets.bottom - 48)
+    : height - insets.top - 16;
   const previewRitual: Ritual = {
     id: 'preview',
     name: previewName,
@@ -5429,6 +5638,22 @@ function AddRitualSheet({
     heat: Array.from({ length: 30 }, () => 0),
     createdAt: Date.now(),
   };
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const hasGoal = typeof editingRitual?.goalAmount === 'number' && Number.isFinite(editingRitual.goalAmount);
+    setName(editingRitual?.name ?? '');
+    setSelectedIconKey(editingRitual?.paletteKey ?? 'water');
+    setTrackAmount(hasGoal);
+    setAmount(hasGoal ? String(editingRitual?.goalAmount) : '');
+    setGoalUnit(editingRitual?.goalUnit ?? 'liters');
+    setReminderTime(editingRitual?.reminderTime ?? '20:00');
+    setTimePickerOpen(false);
+    setHasError(false);
+    setConfirmDelete(false);
+  }, [editingRitual?.id, open]);
 
   useEffect(() => {
     if (open) {
@@ -5471,14 +5696,25 @@ function AddRitualSheet({
       setHasError(true);
       return;
     }
-    await onAdd({
+    const draft: CreateRitualInput = {
       name: trimmed,
       icon: selectedIcon.icon,
       paletteKey: selectedIcon.key,
       goalAmount: trackAmount ? parsedAmount : undefined,
       goalUnit: trackAmount ? goalUnit : undefined,
       reminderTime,
-    });
+    };
+
+    try {
+      if (isEditing && editingRitual && onUpdate) {
+        await onUpdate(editingRitual.id, draft);
+      } else {
+        await onAdd(draft);
+      }
+    } catch {
+      return;
+    }
+
     setName('');
     setSelectedIconKey('water');
     setTrackAmount(false);
@@ -5486,6 +5722,24 @@ function AddRitualSheet({
     setGoalUnit('liters');
     setReminderTime('20:00');
     setHasError(false);
+    setConfirmDelete(false);
+    onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!editingRitual || !onDelete) {
+      return;
+    }
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
+      await onDelete(editingRitual.id);
+    } catch {
+      return;
+    }
+    setConfirmDelete(false);
     onClose();
   };
 
@@ -5497,6 +5751,7 @@ function AddRitualSheet({
     setGoalUnit(template.goalUnit);
     setReminderTime(template.reminderTime);
     setHasError(false);
+    setConfirmDelete(false);
   };
 
   const cycleUnit = () => {
@@ -5509,15 +5764,16 @@ function AddRitualSheet({
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalRoot}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.modalRoot, isTablet && styles.modalRootTablet]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
           <Animated.View style={[styles.modalOverlay, { opacity: overlay }]} />
         </Pressable>
         <Animated.View
           style={[
             styles.modalSheet,
+            isTablet && styles.modalSheetTablet,
             {
-              maxHeight: height - insets.top - 16,
+              maxHeight: sheetMaxHeight,
               maxWidth: sheetMaxWidth,
               paddingBottom: Math.max(insets.bottom, 18) + 12,
               transform: [{ translateY: sheetY }],
@@ -5530,29 +5786,34 @@ function AddRitualSheet({
             contentContainerStyle={styles.modalSheetContent}
           >
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>New ritual</Text>
+          <Text style={styles.modalTitle}>{isEditing ? 'Edit ritual' : 'New ritual'}</Text>
 
           <RitualPreviewCard ritual={previewRitual} reduceMotion={reduceMotion} />
 
-          <Text style={styles.fieldLabel}>Quick start</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templateChipRow}>
-            {ritualTemplates.map((template) => (
-              <Pressable key={template.label} accessibilityRole="button" onPress={() => applyTemplate(template)} style={styles.templateChip}>
-                <Text style={styles.templateChipText}>{template.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {!isEditing ? (
+            <>
+              <Text style={styles.fieldLabel}>Quick start</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templateChipRow}>
+                {ritualTemplates.map((template) => (
+                  <Pressable key={template.label} accessibilityRole="button" onPress={() => applyTemplate(template)} style={styles.templateChip}>
+                    <Text style={styles.templateChipText}>{template.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
 
           <Text style={styles.fieldLabel}>Name</Text>
           <TextInput
             value={name}
             onChangeText={(value) => {
               setName(value);
+              setConfirmDelete(false);
               if (hasError) {
                 setHasError(false);
               }
             }}
-            placeholder={hasError ? 'Enter a name first' : 'Evening stretch'}
+            placeholder={hasError ? 'Enter a name first' : isEditing ? 'Ritual name' : 'Evening stretch'}
             placeholderTextColor={hasError ? colors.danger : colors.inkFaint}
             style={[styles.fieldInput, hasError && styles.fieldInputError]}
             returnKeyType="next"
@@ -5568,7 +5829,10 @@ function AddRitualSheet({
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 accessibilityLabel={`${option.label} icon`}
-                onPress={() => setSelectedIconKey(option.key)}
+                onPress={() => {
+                  setSelectedIconKey(option.key);
+                  setConfirmDelete(false);
+                }}
                 style={[styles.iconLibraryTile, selected && { borderColor: palette.a, shadowColor: palette.a, shadowOpacity: 0.25, elevation: 3 }]}
               >
                 <Text style={styles.iconLibraryEmoji}>{option.icon}</Text>
@@ -5578,7 +5842,15 @@ function AddRitualSheet({
             })}
           </View>
 
-          <Pressable accessibilityRole="switch" accessibilityState={{ checked: trackAmount }} onPress={() => setTrackAmount((current) => !current)} style={styles.amountToggleRow}>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: trackAmount }}
+            onPress={() => {
+              setTrackAmount((current) => !current);
+              setConfirmDelete(false);
+            }}
+            style={styles.amountToggleRow}
+          >
             <View>
               <Text style={styles.amountToggleTitle}>Track a daily amount</Text>
               <Text style={styles.amountToggleSub}>Optional goal or quantity tracking</Text>
@@ -5594,6 +5866,7 @@ function AddRitualSheet({
                 value={amount}
                 onChangeText={(value) => {
                   setAmount(value.replace(/[^0-9.]/g, '').slice(0, 6));
+                  setConfirmDelete(false);
                   if (hasError) {
                     setHasError(false);
                   }
@@ -5603,7 +5876,14 @@ function AddRitualSheet({
                 keyboardType="decimal-pad"
                 style={[styles.fieldInput, styles.amountInput, hasError && !amountValid && styles.fieldInputError]}
               />
-              <Pressable accessibilityRole="button" onPress={cycleUnit} style={styles.unitButton}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  cycleUnit();
+                  setConfirmDelete(false);
+                }}
+                style={styles.unitButton}
+              >
                 <Text style={styles.unitButtonText}>{goalUnit}</Text>
               </Pressable>
             </View>
@@ -5616,13 +5896,23 @@ function AddRitualSheet({
                 key={preset.value}
                 accessibilityRole="button"
                 accessibilityState={{ selected: reminderTime === preset.value }}
-                onPress={() => setReminderTime(preset.value)}
+                onPress={() => {
+                  setReminderTime(preset.value);
+                  setConfirmDelete(false);
+                }}
                 style={[styles.reminderChip, reminderTime === preset.value && styles.reminderChipSelected]}
               >
                 <Text style={[styles.reminderChipText, reminderTime === preset.value && styles.reminderChipTextSelected]}>{preset.label}</Text>
               </Pressable>
             ))}
-            <Pressable accessibilityRole="button" onPress={() => setTimePickerOpen(true)} style={[styles.reminderChip, reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) && styles.reminderChipSelected]}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setTimePickerOpen(true);
+                setConfirmDelete(false);
+              }}
+              style={[styles.reminderChip, reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) && styles.reminderChipSelected]}
+            >
               <Text style={[styles.reminderChipText, reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) && styles.reminderChipTextSelected]}>
                 {reminderTime && !reminderPresets.some((preset) => preset.value === reminderTime) ? formatReminderTime(reminderTime) : 'Custom'}
               </Text>
@@ -5640,9 +5930,17 @@ function AddRitualSheet({
                 }
                 if (selectedDate) {
                   setReminderTime(timeValueFromDate(selectedDate));
+                  setConfirmDelete(false);
                 }
               }}
             />
+          ) : null}
+
+          {isEditing ? (
+            <Pressable accessibilityRole="button" onPress={handleDelete} style={[styles.deleteRitualButton, confirmDelete && styles.deleteRitualButtonConfirm]}>
+              <Trash2 size={16} color={colors.danger} strokeWidth={2.5} />
+              <Text style={styles.deleteRitualText}>{confirmDelete ? 'Tap again to delete' : 'Delete ritual'}</Text>
+            </Pressable>
           ) : null}
 
           <View style={styles.modalActions}>
@@ -5650,7 +5948,7 @@ function AddRitualSheet({
               <Text style={styles.btnSecondaryText}>Cancel</Text>
             </Pressable>
             <Pressable accessibilityRole="button" disabled={!name.trim() || !amountValid} onPress={submit} style={[styles.btnPrimary, (!name.trim() || !amountValid) && styles.btnPrimaryDisabled]}>
-              <Text style={styles.btnPrimaryText}>Add ritual</Text>
+              <Text style={styles.btnPrimaryText}>{isEditing ? 'Save changes' : 'Add ritual'}</Text>
             </Pressable>
           </View>
           </ScrollView>
@@ -5824,6 +6122,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.page,
   },
+  hidden: {
+    display: 'none',
+  },
   launchSplash: {
     position: 'absolute',
     left: 0,
@@ -5893,6 +6194,9 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 20,
   },
+  authScrollSplit: {
+    justifyContent: 'center',
+  },
   authBackButton: {
     width: 38,
     height: 38,
@@ -5909,12 +6213,33 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
   },
+  authPanel: {
+    width: '100%',
+  },
+  authPanelSplit: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 24,
+  },
+  authHeroPane: {
+    flex: 1.05,
+    minWidth: 0,
+  },
   authHero: {
     minHeight: 300,
     marginHorizontal: -20,
     marginTop: -10,
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  authHeroSplit: {
+    flex: 1,
+    minHeight: 500,
+    marginHorizontal: 0,
+    marginTop: 0,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   authHeroCompact: {
     minHeight: 210,
@@ -5942,6 +6267,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 28,
     paddingTop: 28,
+  },
+  authHeroContentSplit: {
+    flex: 1,
+    paddingHorizontal: 36,
+    paddingTop: 0,
   },
   logoMark: {
     alignItems: 'center',
@@ -5986,16 +6316,39 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
+  authHeroTitleSplit: {
+    fontSize: 34,
+    lineHeight: 40,
+  },
+  authHeroSubtitleSplit: {
+    maxWidth: 300,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 8,
+  },
   authCardWrap: {
     width: '100%',
     marginTop: -46,
+  },
+  authCardWrapSplit: {
+    flex: 0.95,
+    minWidth: 0,
+    maxWidth: 470,
+    alignSelf: 'center',
+    marginTop: 0,
   },
   authCard: {
     borderRadius: 32,
     padding: 22,
   },
+  authCardTablet: {
+    padding: 24,
+  },
   authCardCreate: {
     marginTop: 30,
+  },
+  authCardCreateSplit: {
+    marginTop: 0,
   },
   authCardTitle: {
     fontFamily: fontSerifSemi,
@@ -6501,8 +6854,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  coachSheetKeyboardTablet: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
   coachSheet: {
     height: '82%',
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.page,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -6513,6 +6874,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 32,
     elevation: 24,
+  },
+  coachSheetTablet: {
+    borderRadius: 30,
   },
   coachHeader: {
     flexDirection: 'row',
@@ -6759,9 +7123,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   screenScroll: {
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 18,
+    paddingBottom: 164,
   },
   topRow: {
     minHeight: 52,
@@ -7198,6 +7563,10 @@ const styles = StyleSheet.create({
     minWidth: 150,
     flexGrow: 1,
   },
+  ritualCellTablet: {
+    width: '31.6%',
+    minWidth: 210,
+  },
   ritualPress: {
     width: '100%',
   },
@@ -7216,6 +7585,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  ritualActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  ritualEditButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ritualCheck: {
     width: 26,
@@ -7864,6 +8248,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  askFloPressableCompact: {
+    justifyContent: 'center',
+  },
   askFloLabel: {
     height: 40,
     minWidth: ASK_FLO_WIDTH - ASK_FLO_HEIGHT + 2,
@@ -7901,6 +8288,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.42,
     shadowRadius: 14,
     elevation: 11,
+  },
+  askFloButtonCompact: {
+    marginLeft: 0,
   },
   navPill: {
     position: 'absolute',
@@ -7952,11 +8342,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  modalRootTablet: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(20,30,50,0.35)',
   },
   modalSheet: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -7968,6 +8366,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 34,
     elevation: 24,
+  },
+  modalSheetTablet: {
+    borderRadius: 28,
   },
   modalSheetContent: {
     paddingBottom: 4,
@@ -8200,6 +8601,27 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: colors.inkSoft,
     marginBottom: 16,
+  },
+  deleteRitualButton: {
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,106,106,0.22)',
+    backgroundColor: 'rgba(255,106,106,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  deleteRitualButtonConfirm: {
+    borderColor: 'rgba(255,106,106,0.42)',
+    backgroundColor: 'rgba(255,106,106,0.14)',
+  },
+  deleteRitualText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 13,
+    color: colors.danger,
   },
   modalActions: {
     flexDirection: 'row',
