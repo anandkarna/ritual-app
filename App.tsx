@@ -1138,7 +1138,7 @@ function isAuthNetworkError(error: unknown) {
 
 function cleanAuthError(error: unknown, fallback: string) {
   if (isAuthNetworkError(error)) {
-    return 'Secure connection to Supabase failed on this device. Your account can continue locally now and sync when the device network/certificate trust is fixed.';
+    return 'Secure connection to Supabase failed on this device. Check the device date/time, update the emulator system image or use the Vercel web app, then try again.';
   }
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -2296,16 +2296,11 @@ function AuthGate({
           : null;
         if (!data.session) {
           setMessage('Account created. Check your email to confirm, then sign in.');
-          onCreate({
-            ...authAccountFromUser(data.user, null),
-            username,
-            password,
-            email: trimmedEmail,
-            name: trimmedName,
-            profileComplete: false,
-            profileSetupSkipped: false,
-            starterOnboardingPending: true,
-          });
+          setMode('signIn');
+          setIdentifier(trimmedEmail);
+          setPassword('');
+          setConfirmPassword('');
+          setTermsAccepted(false);
           return;
         }
         onCreate({
@@ -2317,8 +2312,7 @@ function AuthGate({
         });
       } catch (authError) {
         if (isAuthNetworkError(authError)) {
-          setMessage('Supabase is unreachable from this device, so Rituals saved this account locally for now.');
-          onCreate(localAuthAccount(username, password, trimmedEmail, trimmedName));
+          setError('Secure connection to Supabase failed on this device, so the account was not created and no email was sent. Check the device date/time, update Android System WebView or use the Vercel web app, then try again.');
           return;
         }
         setError(cleanAuthError(authError, 'Unable to create account.'));
