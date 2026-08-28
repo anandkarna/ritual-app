@@ -7,6 +7,7 @@ import { PlusJakartaSans_400Regular } from '@expo-google-fonts/plus-jakarta-sans
 import { PlusJakartaSans_500Medium } from '@expo-google-fonts/plus-jakarta-sans/500Medium';
 import { PlusJakartaSans_600SemiBold } from '@expo-google-fonts/plus-jakarta-sans/600SemiBold';
 import { useFonts } from 'expo-font';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationBar } from 'expo-navigation-bar';
@@ -111,7 +112,7 @@ type PaletteKey =
   | 'cycling'
   | 'skincare'
   | 'noPhone';
-type GoalUnit = 'liters' | 'minutes' | 'hours' | 'pages' | 'reps' | 'glasses';
+type GoalUnit = 'liters' | 'minutes' | 'hours' | 'pages' | 'reps' | 'glasses' | 'meals' | 'sessions';
 type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
 
 type HabitPalette = {
@@ -378,6 +379,19 @@ const fontSerif = 'Fraunces_500Medium';
 const fontSerifSemi = 'Fraunces_600SemiBold';
 const fontSerifBold = 'Fraunces_600SemiBold';
 
+const navGlassColors = {
+  pillBase: 'rgba(120,140,180,0.12)',
+  border: 'rgba(255,255,255,0.55)',
+  indicator: 'rgba(255,255,255,0.30)',
+  indicatorBorder: 'rgba(255,255,255,0.50)',
+  inactiveIcon: '#536783',
+  activeIcon: '#4FA8FF',
+  iconGlow: 'rgba(255,255,255,0.85)',
+
+  addButtonGradient: ['#78BEFF', '#4FA8FF'] as const,
+  addButtonIcon: '#FFFFFF',
+};
+
 function responsiveMaxWidth(width: number, maxWidth: number, horizontalPadding: number) {
   return Math.min(maxWidth, Math.max(0, width - horizontalPadding * 2));
 }
@@ -483,10 +497,10 @@ const heroThemes: Record<HeroThemeKey, HeroTheme> = {
   },
   evening: {
     key: 'evening',
-    backdrop: ['#FFF1F5', '#FFD3E0', '#FFAAC0'],
-    wave: ['#FFC8D8', '#FF6A96'],
-    accent: '#FF6A96',
-    inkOnHero: '#7A2947',
+    backdrop: ['#ECE4F9', '#F3EDFB', '#C9B8EE'],
+    wave: ['#C9B8EE', '#8266C4'],
+    accent: '#8266C4',
+    inkOnHero: '#4A3684',
     greeting: 'Good Evening',
   },
   night: {
@@ -527,7 +541,7 @@ const ritualIconLibrary: Array<{ key: PaletteKey; icon: string; label: string }>
   { key: 'skincare', icon: '🧴', label: 'Skincare' },
   { key: 'noPhone', icon: '📵', label: 'No Phone' },
 ];
-const goalUnits: GoalUnit[] = ['liters', 'minutes', 'hours', 'pages', 'reps', 'glasses'];
+const goalUnits: GoalUnit[] = ['liters', 'minutes', 'hours', 'meals', 'sessions', 'pages', 'reps', 'glasses'];
 const reminderPresets = [
   { label: '8:00 AM', value: '08:00' },
   { label: '1:00 PM', value: '13:00' },
@@ -537,7 +551,7 @@ const ritualTemplates: Array<{ label: string; name: string; iconKey: PaletteKey;
   { label: 'Water 4L', name: 'Water 4L', iconKey: 'water', goalAmount: 4, goalUnit: 'liters', reminderTime: '20:00' },
   { label: 'Run 30min', name: 'Run 30min', iconKey: 'running', goalAmount: 30, goalUnit: 'minutes', reminderTime: '08:00' },
   { label: 'Meditate 10min', name: 'Meditate 10min', iconKey: 'meditate', goalAmount: 10, goalUnit: 'minutes', reminderTime: '08:00' },
-  { label: 'Read 20 pages', name: 'Read 20 pages', iconKey: 'reading', goalAmount: 20, goalUnit: 'pages', reminderTime: '20:00' },
+  { label: 'Read 20 min', name: 'Read 20 min', iconKey: 'reading', goalAmount: 20, goalUnit: 'minutes', reminderTime: '20:00' },
   { label: 'Gym session', name: 'Gym session', iconKey: 'gym', goalAmount: 45, goalUnit: 'minutes', reminderTime: '13:00' },
 ];
 const dreamOptions: Array<{ id: DreamId; icon: string; title: string; description: string; paletteKey: PaletteKey }> = [
@@ -570,7 +584,7 @@ const starterRitualsByDream: Record<DreamId, Array<{ name: string; icon: string;
     { name: 'Protein Intake', icon: '🥩', paletteKey: 'food', reminderTime: '13:00' },
   ],
   mind: [
-    { name: 'Read 20 Pages', icon: '📖', paletteKey: 'reading', goalAmount: 20, goalUnit: 'pages', reminderTime: '20:00' },
+    { name: 'Read 20 min', icon: '📖', paletteKey: 'reading', goalAmount: 20, goalUnit: 'minutes', reminderTime: '20:00' },
     { name: 'Learn a Skill', icon: '🎯', paletteKey: 'focus', goalAmount: 30, goalUnit: 'minutes', reminderTime: '13:00' },
     { name: 'Deep Work Block', icon: '💻', paletteKey: 'work', goalAmount: 45, goalUnit: 'minutes', reminderTime: '13:00' },
   ],
@@ -735,7 +749,7 @@ function isCheckinCategory(value: unknown): value is CheckinCategory {
 }
 
 function isGoalUnit(value: unknown): value is GoalUnit {
-  return value === 'liters' || value === 'minutes' || value === 'hours' || value === 'pages' || value === 'reps' || value === 'glasses';
+  return value === 'liters' || value === 'minutes' || value === 'hours' || value === 'pages' || value === 'reps' || value === 'glasses' || value === 'meals' || value === 'sessions';
 }
 
 function isPaletteKey(value: unknown): value is PaletteKey {
@@ -752,6 +766,19 @@ function iconOptionForKey(key: PaletteKey) {
 
 function iconOptionForEmoji(icon: string) {
   return ritualIconLibrary.find((option) => option.icon === icon) ?? ritualIconLibrary[0];
+}
+
+function defaultGoalUnitForPalette(key: PaletteKey): GoalUnit {
+  switch (key) {
+    case 'water': return 'liters';
+    case 'gym':
+    case 'work':
+    case 'sleep':
+    case 'noPhone': return 'hours';
+    case 'food': return 'meals';
+    case 'skincare': return 'sessions';
+    default: return 'minutes';
+  }
 }
 
 function starterRitualToRitual(
@@ -813,6 +840,10 @@ function goalLabel(amount?: number, unit?: GoalUnit) {
   const formattedAmount = Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(2)));
   const unitLabel = unit === 'liters' ? 'L' : unit === 'minutes' ? 'min' : unit === 'hours' ? 'hrs' : unit;
   return unit === 'liters' || unit === 'minutes' || unit === 'hours' ? `${formattedAmount}${unitLabel}` : `${formattedAmount} ${unitLabel}`;
+}
+
+function goalUnitDisplayLabel(unit: GoalUnit) {
+  return unit.charAt(0).toUpperCase() + unit.slice(1);
 }
 
 function formatReminderTime(value?: string) {
@@ -981,7 +1012,7 @@ async function generateFloCheckinReply(ritual: Ritual, reason: string, tone: Flo
   return fallback;
 }
 
-function normalizeState(parsed: Partial<SavedFlowState>): SavedFlowState {
+function normalizeState(parsed: Partial<SavedFlowState> = {}): SavedFlowState {
   const rituals = Array.isArray(parsed.rituals) && parsed.rituals.length ? parsed.rituals : seedRituals;
   const today = todayIso();
   const dateDistance = daysBetweenIso(parsed.stateDate, today);
@@ -3556,7 +3587,15 @@ function FlowApp({
 
     const loadLocal = async () => {
       const stored = await AsyncStorage.getItem(storageKey);
-      return stored ? normalizeState(JSON.parse(stored) as Partial<SavedFlowState>) : defaultState;
+      if (!stored) {
+        return defaultState;
+      }
+      try {
+        const parsed = JSON.parse(stored) as Partial<SavedFlowState> | null;
+        return normalizeState(parsed ?? {});
+      } catch {
+        return defaultState;
+      }
     };
 
     const hydrate = async () => {
@@ -4809,7 +4848,7 @@ function TodayRhythmTimeline({ rituals, now }: { rituals: Ritual[]; now: Date })
         <View style={styles.rhythmTrack}>
           <LinearGradient colors={['#FFE3C2', '#FFD199']} style={[styles.rhythmSegment, { flex: 6 }]} />
           <LinearGradient colors={['#CFE8FF', '#AFDBFF']} style={[styles.rhythmSegment, { flex: 5 }]} />
-          <LinearGradient colors={['#FFD3E1', '#FFB9CF']} style={[styles.rhythmSegment, { flex: 4 }]} />
+          <LinearGradient colors={['#ECE4F9', '#C9B8EE']} style={[styles.rhythmSegment, { flex: 4 }]} />
           <LinearGradient colors={['#DCE1F0', '#C7CEE6']} style={[styles.rhythmSegment, { flex: 3 }]} />
         </View>
         <View pointerEvents="none" style={[styles.rhythmNowTick, { left: `${nowPct}%` }]} />
@@ -6497,8 +6536,6 @@ function BottomNav({
   const activeIndex = activeTab === 'today' ? 0 : activeTab === 'progress' ? 1 : activeTab === 'insights' ? 3 : 4;
   const mounted = useRef(new Animated.Value(0)).current;
   const indicator = useRef(new Animated.Value(activeIndex)).current;
-  const rimSpin = useRef(new Animated.Value(0)).current;
-  const sweep = useRef(new Animated.Value(0)).current;
   const itemWidth = width < 380 ? 44 : 48;
   const gap = width < 380 ? 14 : 18;
   const padX = width < 380 ? 18 : 22;
@@ -6509,19 +6546,6 @@ function BottomNav({
     : 14;
   const navBottom = Platform.OS === 'android' ? 24 : Math.max(20, bottomInset + 8);
   const clampedNavWidth = Math.min(navWidth, width - navSideOffset * 2);
-  const rimRotation = rimSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-  const sweepTranslate = sweep.interpolate({
-    inputRange: [0, 0.15, 0.5, 0.85, 1],
-    outputRange: [-clampedNavWidth * 0.52, -clampedNavWidth * 0.18, clampedNavWidth * 0.38, clampedNavWidth * 0.86, clampedNavWidth * 1.08],
-  });
-  const sweepOpacity = sweep.interpolate({
-    inputRange: [0, 0.15, 0.5, 0.85, 1],
-    outputRange: [0, 0.5, 0.5, 0, 0],
-  });
-
   useEffect(() => {
     Animated.timing(mounted, {
       toValue: 1,
@@ -6540,41 +6564,6 @@ function BottomNav({
     }).start();
   }, [activeIndex, indicator, reduceMotion]);
 
-  useEffect(() => {
-    if (reduceMotion) {
-      return undefined;
-    }
-    const rimLoop = Animated.loop(
-      Animated.timing(rimSpin, {
-        toValue: 1,
-        duration: 11000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    const sweepLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sweep, {
-          toValue: 1,
-          duration: 6500,
-          easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(sweep, {
-          toValue: 0,
-          duration: 1,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    rimLoop.start();
-    sweepLoop.start();
-    return () => {
-      rimLoop.stop();
-      sweepLoop.stop();
-    };
-  }, [reduceMotion, rimSpin, sweep]);
-
   return (
     <Animated.View
       style={[
@@ -6589,46 +6578,8 @@ function BottomNav({
       ]}
     >
       <View style={[styles.glassNavRim, { width: clampedNavWidth }]}>
-        <Animated.View pointerEvents="none" style={[styles.glassNavRimSpin, { transform: [{ rotate: rimRotation }] }]}>
-          <LinearGradient
-            colors={[
-              'rgba(255,255,255,0.95)',
-              'rgba(255,255,255,0.26)',
-              'rgba(210,218,255,0.98)',
-              'rgba(255,255,255,0.22)',
-              'rgba(255,255,255,0.95)',
-            ]}
-            locations={[0, 0.24, 0.55, 0.76, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.glassNavRimSpinGradient}
-          />
-        </Animated.View>
-        <LinearGradient
-          colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.06)']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={[styles.glassNavPill, { paddingHorizontal: padX }]}
-        >
-          <View pointerEvents="none" style={styles.glassNavSheen} />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.glassNavSweep,
-              {
-                width: clampedNavWidth * 0.4,
-                opacity: sweepOpacity,
-                transform: [{ translateX: sweepTranslate }, { skewX: '-18deg' }],
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.35)', 'transparent']}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.glassNavSweepGradient}
-            />
-          </Animated.View>
+        <BlurView intensity={45} tint="light" style={styles.glassNavBlur}>
+          <View style={[styles.glassNavPill, { paddingHorizontal: padX }]}>
           <View style={[styles.glassNavRow, { gap }]}>
             <Animated.View
               pointerEvents="none"
@@ -6643,15 +6594,16 @@ function BottomNav({
             <NavItem tab="today" label="Home" icon={Home} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
             <NavItem tab="progress" label="Progress" icon={Clock3} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
             <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={[styles.glassNavItem, { width: itemWidth }]}>
-              <LinearGradient colors={['#9D8BF5', '#6653D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.glassNavAdd}>
-                <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
+              <LinearGradient colors={navGlassColors.addButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.glassNavAdd}>
+                <Plus size={16} color={navGlassColors.addButtonIcon} strokeWidth={2.5} />
               </LinearGradient>
               <Text style={styles.glassNavLabel}>Add</Text>
             </Pressable>
             <NavItem tab="insights" label="Insights" icon={PieChart} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
             <NavItem tab="profile" label="Profile" icon={User} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
           </View>
-        </LinearGradient>
+          </View>
+        </BlurView>
       </View>
     </Animated.View>
   );
@@ -6680,7 +6632,7 @@ function NavItem({
       onPress={() => onChange(tab)}
       style={[styles.glassNavItem, { width: itemWidth }, active && styles.glassNavItemActive]}
     >
-      <Icon size={20} color={active ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} strokeWidth={active ? 2.35 : 1.9} />
+      <Icon size={20} color={active ? navGlassColors.activeIcon : navGlassColors.inactiveIcon} strokeWidth={active ? 2.35 : 1.9} />
       <Text style={[styles.glassNavLabel, active && styles.glassNavLabelActive]}>{label}</Text>
     </Pressable>
   );
@@ -6797,7 +6749,7 @@ function AddRitualSheet({
     setSelectedIconKey(editingRitual?.paletteKey ?? 'water');
     setTrackAmount(hasGoal);
     setAmount(hasGoal ? String(editingRitual?.goalAmount) : '');
-    setGoalUnit(editingRitual?.goalUnit ?? 'liters');
+    setGoalUnit(editingRitual?.goalUnit ?? defaultGoalUnitForPalette(editingRitual?.paletteKey ?? 'water'));
     setReminderTime(editingRitual?.reminderTime ?? '20:00');
     setTimePickerOpen(false);
     setHasError(false);
@@ -6870,7 +6822,7 @@ function AddRitualSheet({
     setSelectedIconKey('water');
     setTrackAmount(false);
     setAmount('');
-    setGoalUnit('liters');
+    setGoalUnit(defaultGoalUnitForPalette('water'));
     setReminderTime('20:00');
     setHasError(false);
     setConfirmDelete(false);
@@ -6996,6 +6948,7 @@ function AddRitualSheet({
                 accessibilityLabel={`${option.label} icon`}
                 onPress={() => {
                   setSelectedIconKey(option.key);
+                  setGoalUnit(defaultGoalUnitForPalette(option.key));
                   setConfirmDelete(false);
                 }}
                 style={[styles.iconLibraryTile, selected && { borderColor: palette.a, shadowColor: palette.a, shadowOpacity: 0.25, elevation: 3 }]}
@@ -7049,7 +7002,7 @@ function AddRitualSheet({
                 }}
                 style={styles.unitButton}
               >
-                <Text style={styles.unitButtonText}>{goalUnit}</Text>
+                <Text style={styles.unitButtonText}>{goalUnitDisplayLabel(goalUnit)}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -9908,55 +9861,37 @@ const styles = StyleSheet.create({
     elevation: 18,
   },
   glassNavRim: {
-    borderRadius: 999,
-    padding: 1.5,
+    borderRadius: 32,
     overflow: 'hidden',
-    shadowColor: '#433C83',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.28,
-    shadowRadius: 40,
-    elevation: 18,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.78)',
+    ...Platform.select({
+      android: { elevation: 10 },
+      ios: {
+        shadowColor: 'rgba(60,60,67,0.18)',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 12,
+      },
+    }),
   },
-  glassNavRimSpin: {
-    position: 'absolute',
-    left: '-60%',
-    right: '-60%',
-    top: '-120%',
-    bottom: '-120%',
-  },
-  glassNavRimSpinGradient: {
-    flex: 1,
+  glassNavBlur: {
+    borderRadius: 32,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   glassNavPill: {
-    minHeight: 68,
-    borderRadius: 999,
-    position: 'relative',
-    backgroundColor: 'rgba(88,80,144,0.84)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    paddingVertical: 14,
+    minHeight: 72,
+    borderRadius: 32,
+    backgroundColor: navGlassColors.pillBase,
+    borderWidth: 1.5,
+    borderColor: navGlassColors.border,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-  },
-  glassNavSheen: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    top: 0,
-    height: '50%',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    opacity: 0.4,
-  },
-  glassNavSweep: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-  },
-  glassNavSweepGradient: {
-    flex: 1,
   },
   glassNavRow: {
     position: 'relative',
@@ -9968,18 +9903,18 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(79,168,255,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(79,168,255,0.36)',
   },
   glassNavItem: {
-    height: 50,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
   glassNavItemActive: {
-    transform: [{ translateY: -2 }, { scale: 1.06 }],
+    transform: [{ translateY: -1 }, { scale: 1.04 }],
   },
   glassNavAdd: {
     width: 30,
@@ -9988,8 +9923,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
-    shadowColor: '#6653D8',
+    borderColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#4FA8FF',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.55,
     shadowRadius: 10,
@@ -9998,11 +9933,11 @@ const styles = StyleSheet.create({
     fontFamily: fontBodyRegular,
     fontSize: 10.5,
     lineHeight: 11,
-    color: 'rgba(255,255,255,0.68)',
+    color: '#4B5D78',
   },
   glassNavLabelActive: {
     fontFamily: fontBodyBold,
-    color: '#FFFFFF',
+    color: navGlassColors.activeIcon,
   },
   navItem: {
     flex: 1,
