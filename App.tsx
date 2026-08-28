@@ -789,6 +789,11 @@ async function upsertProfileForUser(user: SupabaseUser, username: string, name: 
     return null;
   }
 
+  const existingProfile = await getProfileForUser(user);
+  if (existingProfile) {
+    return existingProfile;
+  }
+
   const { data, error } = await supabase
     .from('profiles')
     .upsert(
@@ -1832,6 +1837,10 @@ function AuthGate({
       setError('Use a stronger password before creating an account.');
       return;
     }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
     if (!termsAccepted) {
       setError('Agree to the Terms of Service and Privacy Policy to continue.');
       return;
@@ -2031,6 +2040,19 @@ function AuthGate({
                         )}
                       />
                       <PasswordStrengthMeter strength={strength} />
+                      <AuthInput
+                        icon={Lock}
+                        label="Confirm password"
+                        value={confirmPassword}
+                        onChangeText={(value) => {
+                          setConfirmPassword(value);
+                          clearFeedback();
+                        }}
+                        placeholder="Re-enter password"
+                        secureTextEntry={!passwordVisible}
+                        returnKeyType="done"
+                        onSubmitEditing={submit}
+                      />
                       <TermsAgreement
                         checked={termsAccepted}
                         onToggle={() => {
