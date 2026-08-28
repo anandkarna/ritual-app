@@ -1,8 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-const appJson = require('./app.json');
-
 function readLocalEnv() {
   const envPath = path.join(__dirname, '.env');
   if (!fs.existsSync(envPath)) {
@@ -24,7 +22,7 @@ function readLocalEnv() {
 
 const localEnv = readLocalEnv();
 
-module.exports = () => {
+module.exports = ({ config }) => {
   const supabaseUrl =
     process.env.EXPO_PUBLIC_SUPABASE_URL ||
     process.env.VITE_SUPABASE_URL ||
@@ -41,17 +39,17 @@ module.exports = () => {
     process.env.EXPO_PUBLIC_NVIDIA_API_KEY ||
     localEnv.EXPO_PUBLIC_NVIDIA_API_KEY ||
     localEnv.NVIDIA_API_KEY;
-  const existingPlugins = appJson.expo.plugins ?? [];
-  const hasNavigationBarPlugin = existingPlugins.some((plugin) => (
+  const plugins = config.plugins ?? [];
+  const hasNavigationBarConfig = plugins.some((plugin) => (
     Array.isArray(plugin) ? plugin[0] === 'expo-navigation-bar' : plugin === 'expo-navigation-bar'
   ));
 
   return {
-    ...appJson.expo,
-    plugins: hasNavigationBarPlugin
-      ? existingPlugins
+    ...config,
+    plugins: hasNavigationBarConfig
+      ? plugins
       : [
-          ...existingPlugins,
+          ...plugins,
           [
             'expo-navigation-bar',
             {
@@ -62,7 +60,7 @@ module.exports = () => {
           ],
         ],
     extra: {
-      ...appJson.expo.extra,
+      ...config.extra,
       supabaseUrl,
       supabaseAnonKey,
       nvidiaApiKey,
