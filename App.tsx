@@ -1113,6 +1113,8 @@ function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfi
   const email = user.email ?? profile?.email ?? '';
   const name = profile?.name || user.user_metadata?.full_name || '';
   const username = name || profile?.username || user.user_metadata?.username || email.split('@')[0] || 'Rituals user';
+  const profileComplete = profile?.profile_complete ?? false;
+  const profileSetupSkipped = profile?.profile_setup_skipped ?? false;
   return {
     id: user.id,
     username,
@@ -1125,9 +1127,9 @@ function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfi
     countryCode: profile?.country_code || DEFAULT_COUNTRY_CODE,
     gender: profile?.gender ?? undefined,
     habitFocus: profile?.habit_focus ?? undefined,
-    profileComplete: profile?.profile_complete ?? false,
-    profileSetupSkipped: profile?.profile_setup_skipped ?? false,
-    starterOnboardingPending: false,
+    profileComplete,
+    profileSetupSkipped,
+    starterOnboardingPending: !profileComplete && !profileSetupSkipped,
   };
 }
 
@@ -2291,25 +2293,16 @@ function AuthGate({
           setError(signUpError?.message ?? 'Unable to create account.');
           return;
         }
-        const profile = data.session
-          ? await upsertProfileForUser(data.user, username, trimmedName, trimmedEmail)
-          : null;
-        if (!data.session) {
-          setMessage('Account created. Check your email to confirm, then sign in.');
-          setMode('signIn');
-          setIdentifier(trimmedEmail);
-          setPassword('');
-          setConfirmPassword('');
-          setTermsAccepted(false);
-          return;
+        if (data.session) {
+          await upsertProfileForUser(data.user, username, trimmedName, trimmedEmail);
+          await supabase.auth.signOut();
         }
-        onCreate({
-          ...authAccountFromUser(data.user, profile),
-          password,
-          profileComplete: false,
-          profileSetupSkipped: false,
-          starterOnboardingPending: true,
-        });
+        setMessage('Account created. Check your email to confirm, then sign in.');
+        setMode('signIn');
+        setIdentifier(trimmedEmail);
+        setPassword('');
+        setConfirmPassword('');
+        setTermsAccepted(false);
       } catch (authError) {
         if (isAuthNetworkError(authError)) {
           setError('Secure connection to Supabase failed on this device, so the account was not created and no email was sent. Check the device date/time, update Android System WebView or use the Vercel web app, then try again.');
