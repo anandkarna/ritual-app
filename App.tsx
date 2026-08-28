@@ -3,15 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Fraunces_400Regular } from '@expo-google-fonts/fraunces/400Regular';
 import { Fraunces_500Medium } from '@expo-google-fonts/fraunces/500Medium';
 import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
-import { Fraunces_700Bold } from '@expo-google-fonts/fraunces/700Bold';
-import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
-import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
-import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
-import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
+import { PlusJakartaSans_400Regular } from '@expo-google-fonts/plus-jakarta-sans/400Regular';
+import { PlusJakartaSans_500Medium } from '@expo-google-fonts/plus-jakarta-sans/500Medium';
+import { PlusJakartaSans_600SemiBold } from '@expo-google-fonts/plus-jakarta-sans/600SemiBold';
 import { useFonts } from 'expo-font';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { NavigationBar } from 'expo-navigation-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -80,6 +79,7 @@ import {
   MessageCircle,
   Moon,
   Pencil,
+  PieChart,
   Phone,
   Plus,
   Send,
@@ -111,7 +111,7 @@ type PaletteKey =
   | 'cycling'
   | 'skincare'
   | 'noPhone';
-type GoalUnit = 'liters' | 'minutes' | 'pages' | 'reps' | 'glasses';
+type GoalUnit = 'liters' | 'minutes' | 'hours' | 'pages' | 'reps' | 'glasses';
 type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
 
 type HabitPalette = {
@@ -137,6 +137,7 @@ type Ritual = {
   name: string;
   icon: string;
   paletteKey: PaletteKey;
+  why?: string;
   goalAmount?: number;
   goalUnit?: GoalUnit;
   reminderTime?: string;
@@ -153,22 +154,45 @@ type CreateRitualInput = {
   name: string;
   icon: string;
   paletteKey: PaletteKey;
+  why?: string;
   goalAmount?: number;
   goalUnit?: GoalUnit;
   reminderTime?: string;
 };
+
+type FloTone = 'gentle' | 'direct' | 'coach';
+type CheckinCategory = 'aligned_tradeoff' | 'circumstantial' | 'drift' | 'pattern';
 
 type FlowSettings = {
   pushNotifications: boolean;
   messageAlerts: boolean;
   darkTheme: boolean;
   haptics: boolean;
+  floTone: FloTone;
+};
+
+type RitualCheckin = {
+  id: string;
+  ritualId: string;
+  date: string;
+  scheduledWindow: string;
+  userReasonRaw: string;
+  category: CheckinCategory;
+  floMessage: string;
+  streakProtected: boolean;
+  suggestedAction: string | null;
+  resolvedAt?: number;
 };
 
 type SavedFlowState = {
   rituals: Ritual[];
+  checkins: RitualCheckin[];
   totalActiveRituals: number;
   baseDoneFromOtherHabits: number;
+  overallStreak: number;
+  rhythmPoints: number;
+  graceHearts: number;
+  onboardingDream?: DreamId | null;
   settings: FlowSettings;
   insight: string;
   stateDate?: string;
@@ -198,6 +222,8 @@ type BurstParticle = {
 };
 
 type AuthMode = 'signIn' | 'createAccount' | 'forgot';
+type OnboardingStep = 'dream' | 'starters';
+type DreamId = 'maintain' | 'dedication' | 'calm' | 'strength' | 'mind' | 'rest';
 
 type AuthAccount = {
   id?: string;
@@ -272,6 +298,7 @@ type SupabaseProfile = {
   habit_focus?: string | null;
   profile_complete?: boolean | null;
   profile_setup_skipped?: boolean | null;
+  flo_tone?: FloTone | null;
 };
 
 type SupabaseHabit = {
@@ -280,6 +307,7 @@ type SupabaseHabit = {
   icon: string;
   color: string | null;
   palette_key?: PaletteKey | null;
+  why?: string | null;
   goal_amount?: number | null;
   goal_unit?: GoalUnit | null;
   reminder_time?: string | null;
@@ -290,6 +318,21 @@ type SupabaseHabitLog = {
   habit_id: string;
   log_date: string;
   completed_at?: string | null;
+};
+
+type SupabaseRitualCheckin = {
+  id: string;
+  habit_id?: string | null;
+  ritual_id?: string | null;
+  checkin_date?: string | null;
+  date?: string | null;
+  scheduled_window?: string | null;
+  user_reason_raw?: string | null;
+  category?: CheckinCategory | null;
+  flo_message?: string | null;
+  streak_protected?: boolean | null;
+  suggested_action?: string | null;
+  created_at?: string | null;
 };
 
 type ReminderScheduleRecord = Record<string, { notificationId: string; reminderTime: string; body: string }>;
@@ -303,7 +346,7 @@ const DEFAULT_COUNTRY_CODE = '+91';
 const DEFAULT_COUNTRY_FLAG = '🇮🇳';
 const PROFILE_SELECT = 'id,username,name,email,avatar_emoji,dark_theme,haptics_enabled,push_enabled,age,city,mobile,country_code,gender,habit_focus,profile_complete,profile_setup_skipped';
 const NAV_HEIGHT = 72;
-const NAV_BOTTOM_OFFSET = 16;
+const NAV_BOTTOM_OFFSET = 0;
 const ASK_FLO_WIDTH = 136;
 const ASK_FLO_HEIGHT = 48;
 const ASK_FLO_EDGE_PADDING = 16;
@@ -326,21 +369,21 @@ const DEFAULT_AUTH_ACCOUNT: AuthAccount = {
   profileComplete: true,
   profileSetupSkipped: false,
 };
-const fontBody = 'Inter_500Medium';
-const fontBodyRegular = 'Inter_400Regular';
-const fontBodySemi = 'Inter_600SemiBold';
-const fontBodyBold = 'Inter_700Bold';
-const fontBodyExtra = 'Inter_800ExtraBold';
+const fontBody = 'PlusJakartaSans_500Medium';
+const fontBodyRegular = 'PlusJakartaSans_400Regular';
+const fontBodySemi = 'PlusJakartaSans_600SemiBold';
+const fontBodyBold = 'PlusJakartaSans_600SemiBold';
+const fontBodyExtra = 'PlusJakartaSans_600SemiBold';
 const fontSerif = 'Fraunces_500Medium';
 const fontSerifSemi = 'Fraunces_600SemiBold';
-const fontSerifBold = 'Fraunces_700Bold';
+const fontSerifBold = 'Fraunces_600SemiBold';
 
 function responsiveMaxWidth(width: number, maxWidth: number, horizontalPadding: number) {
   return Math.min(maxWidth, Math.max(0, width - horizontalPadding * 2));
 }
 
 const colors = {
-  page: '#E7EDF5',
+  page: '#EFF3FA',
   ink: '#1C2B49',
   inkSoft: '#7C8AA6',
   inkFaint: '#A9B4C7',
@@ -349,6 +392,10 @@ const colors = {
   cardBorder: 'rgba(255,255,255,0.7)',
   blue1: '#4FA8FF',
   blue2: '#BFE3FF',
+  green: '#33CBA1',
+  orange: '#FF9F43',
+  pink: '#FF6A96',
+  indigo: '#7A79FF',
   danger: '#FF6A6A',
   track: 'rgba(120,140,180,0.14)',
   line: 'rgba(120,140,180,0.1)',
@@ -357,6 +404,7 @@ const colors = {
 const runtimeExtra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
 const supabaseUrl = typeof runtimeExtra.supabaseUrl === 'string' ? runtimeExtra.supabaseUrl : undefined;
 const supabaseAnonKey = typeof runtimeExtra.supabaseAnonKey === 'string' ? runtimeExtra.supabaseAnonKey : undefined;
+const nvidiaApiKey = typeof runtimeExtra.nvidiaApiKey === 'string' ? runtimeExtra.nvidiaApiKey : undefined;
 const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -386,6 +434,8 @@ function getNotificationsModule() {
 }
 
 const notificationsModule = getNotificationsModule();
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 notificationsModule?.setNotificationHandler({
   handleNotification: async () => ({
@@ -477,7 +527,7 @@ const ritualIconLibrary: Array<{ key: PaletteKey; icon: string; label: string }>
   { key: 'skincare', icon: '🧴', label: 'Skincare' },
   { key: 'noPhone', icon: '📵', label: 'No Phone' },
 ];
-const goalUnits: GoalUnit[] = ['liters', 'minutes', 'pages', 'reps', 'glasses'];
+const goalUnits: GoalUnit[] = ['liters', 'minutes', 'hours', 'pages', 'reps', 'glasses'];
 const reminderPresets = [
   { label: '8:00 AM', value: '08:00' },
   { label: '1:00 PM', value: '13:00' },
@@ -490,6 +540,46 @@ const ritualTemplates: Array<{ label: string; name: string; iconKey: PaletteKey;
   { label: 'Read 20 pages', name: 'Read 20 pages', iconKey: 'reading', goalAmount: 20, goalUnit: 'pages', reminderTime: '20:00' },
   { label: 'Gym session', name: 'Gym session', iconKey: 'gym', goalAmount: 45, goalUnit: 'minutes', reminderTime: '13:00' },
 ];
+const dreamOptions: Array<{ id: DreamId; icon: string; title: string; description: string; paletteKey: PaletteKey }> = [
+  { id: 'maintain', icon: '🌿', title: 'Maintain yourself', description: 'Small daily care, consistently', paletteKey: 'food' },
+  { id: 'dedication', icon: '🔥', title: 'Build dedication', description: 'Show up, no matter what', paletteKey: 'running' },
+  { id: 'calm', icon: '🧘', title: 'Find calm', description: 'Slow down and reset', paletteKey: 'meditate' },
+  { id: 'strength', icon: '💪', title: 'Get stronger', description: 'Move your body daily', paletteKey: 'gym' },
+  { id: 'mind', icon: '📖', title: 'Grow my mind', description: 'Read, learn, focus', paletteKey: 'reading' },
+  { id: 'rest', icon: '🌙', title: 'Rest better', description: 'Sleep as a ritual too', paletteKey: 'sleep' },
+];
+const starterRitualsByDream: Record<DreamId, Array<{ name: string; icon: string; paletteKey: PaletteKey; goalAmount?: number; goalUnit?: GoalUnit; reminderTime: string }>> = {
+  maintain: [
+    { name: 'Water Intake', icon: '💧', paletteKey: 'water', goalAmount: 4, goalUnit: 'liters', reminderTime: '08:00' },
+    { name: 'Skincare', icon: '🧴', paletteKey: 'skincare', reminderTime: '20:00' },
+    { name: 'Stretch', icon: '🤸', paletteKey: 'gym', goalAmount: 10, goalUnit: 'minutes', reminderTime: '08:00' },
+  ],
+  dedication: [
+    { name: 'Morning Routine', icon: '🌅', paletteKey: 'work', reminderTime: '08:00' },
+    { name: 'No-Excuse Journal', icon: '✍️', paletteKey: 'journal', goalAmount: 10, goalUnit: 'minutes', reminderTime: '20:00' },
+    { name: 'Cold Shower', icon: '🚿', paletteKey: 'water', reminderTime: '08:00' },
+  ],
+  calm: [
+    { name: 'Meditate', icon: '🧘', paletteKey: 'meditate', goalAmount: 10, goalUnit: 'minutes', reminderTime: '08:00' },
+    { name: 'Gratitude Journal', icon: '📝', paletteKey: 'journal', reminderTime: '20:00' },
+    { name: 'Evening Wind-down', icon: '🌙', paletteKey: 'sleep', reminderTime: '20:00' },
+  ],
+  strength: [
+    { name: 'Workout', icon: '🏋️', paletteKey: 'gym', goalAmount: 45, goalUnit: 'minutes', reminderTime: '13:00' },
+    { name: 'Run 30min', icon: '🏃', paletteKey: 'running', goalAmount: 30, goalUnit: 'minutes', reminderTime: '08:00' },
+    { name: 'Protein Intake', icon: '🥩', paletteKey: 'food', reminderTime: '13:00' },
+  ],
+  mind: [
+    { name: 'Read 20 Pages', icon: '📖', paletteKey: 'reading', goalAmount: 20, goalUnit: 'pages', reminderTime: '20:00' },
+    { name: 'Learn a Skill', icon: '🎯', paletteKey: 'focus', goalAmount: 30, goalUnit: 'minutes', reminderTime: '13:00' },
+    { name: 'Deep Work Block', icon: '💻', paletteKey: 'work', goalAmount: 45, goalUnit: 'minutes', reminderTime: '13:00' },
+  ],
+  rest: [
+    { name: 'Sleep 6hrs', icon: '🌙', paletteKey: 'sleep', goalAmount: 6, goalUnit: 'hours', reminderTime: '20:00' },
+    { name: 'No Screens After 9pm', icon: '📵', paletteKey: 'noPhone', reminderTime: '20:00' },
+    { name: 'Wind-down Routine', icon: '🕯️', paletteKey: 'sleep', reminderTime: '20:00' },
+  ],
+};
 const weekLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const genderOptions = ['Female', 'Male', 'Other'];
 const habitFocusOptions = ['Reading', 'Fitness', 'Mindfulness', 'Sleep', 'Hydration', 'Food'];
@@ -499,14 +589,20 @@ const seedSettings: FlowSettings = {
   messageAlerts: true,
   darkTheme: false,
   haptics: true,
+  floTone: 'gentle',
 };
 
 const seedRituals: Ritual[] = [];
 
 const defaultState: SavedFlowState = {
   rituals: seedRituals,
+  checkins: [],
   totalActiveRituals: 0,
   baseDoneFromOtherHabits: 0,
+  overallStreak: 0,
+  rhythmPoints: 0,
+  graceHearts: 5,
+  onboardingDream: null,
   settings: seedSettings,
   insight: '',
 };
@@ -568,6 +664,26 @@ function hourToPercent(hourValue: number) {
   return ((clamped - start) / (end - start)) * 100;
 }
 
+const COLLISION_PCT = 6.5;
+
+type TimelineEntry = {
+  ritual: Ritual;
+  pct: number;
+};
+
+function groupIntoClusters(sortedEntries: TimelineEntry[]) {
+  const clusters: Array<{ items: TimelineEntry[] }> = [];
+  sortedEntries.forEach((entry) => {
+    const last = clusters[clusters.length - 1];
+    if (last && entry.pct - last.items[last.items.length - 1].pct < COLLISION_PCT) {
+      last.items.push(entry);
+      return;
+    }
+    clusters.push({ items: [entry] });
+  });
+  return clusters;
+}
+
 function hourFloatFromIso(value?: string | null) {
   if (!value) {
     return null;
@@ -610,12 +726,24 @@ function isHeroThemeKey(value: string | null): value is HeroThemeKey {
   return value === 'morning' || value === 'afternoon' || value === 'evening' || value === 'night';
 }
 
+function isFloTone(value: unknown): value is FloTone {
+  return value === 'gentle' || value === 'direct' || value === 'coach';
+}
+
+function isCheckinCategory(value: unknown): value is CheckinCategory {
+  return value === 'aligned_tradeoff' || value === 'circumstantial' || value === 'drift' || value === 'pattern';
+}
+
 function isGoalUnit(value: unknown): value is GoalUnit {
-  return value === 'liters' || value === 'minutes' || value === 'pages' || value === 'reps' || value === 'glasses';
+  return value === 'liters' || value === 'minutes' || value === 'hours' || value === 'pages' || value === 'reps' || value === 'glasses';
 }
 
 function isPaletteKey(value: unknown): value is PaletteKey {
   return typeof value === 'string' && value in habitPalette;
+}
+
+function isDreamId(value: unknown): value is DreamId {
+  return typeof value === 'string' && dreamOptions.some((option) => option.id === value);
 }
 
 function iconOptionForKey(key: PaletteKey) {
@@ -626,13 +754,65 @@ function iconOptionForEmoji(icon: string) {
   return ritualIconLibrary.find((option) => option.icon === icon) ?? ritualIconLibrary[0];
 }
 
+function starterRitualToRitual(
+  starter: { name: string; icon: string; paletteKey: PaletteKey; goalAmount?: number; goalUnit?: GoalUnit; reminderTime: string },
+  index: number,
+  idPrefix = 'starter',
+): Ritual {
+  return {
+    id: `${idPrefix}-${Date.now()}-${index}`,
+    name: starter.name,
+    icon: starter.icon,
+    paletteKey: starter.paletteKey,
+    goalAmount: starter.goalAmount,
+    goalUnit: starter.goalUnit,
+    reminderTime: starter.reminderTime,
+    completedAt: null,
+    streakDays: 0,
+    bestStreakDays: 0,
+    doneToday: false,
+    weekly: [0, 0, 0, 0, 0, 0, 0],
+    heat: Array.from({ length: 30 }, () => 0),
+    createdAt: Date.now() + index,
+  };
+}
+
+function normalizeCheckins(value: unknown): RitualCheckin[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item, index): RitualCheckin | null => {
+      const raw = item as Partial<RitualCheckin>;
+      if (!raw.ritualId || !raw.date || !raw.userReasonRaw) {
+        return null;
+      }
+      const normalized: RitualCheckin = {
+        id: raw.id || `checkin-${raw.ritualId}-${raw.date}-${index}`,
+        ritualId: raw.ritualId,
+        date: raw.date,
+        scheduledWindow: raw.scheduledWindow || 'Today',
+        userReasonRaw: raw.userReasonRaw,
+        category: isCheckinCategory(raw.category) ? raw.category : 'drift',
+        floMessage: raw.floMessage || 'Thanks for naming what happened. One honest check-in is still part of the ritual.',
+        streakProtected: Boolean(raw.streakProtected),
+        suggestedAction: typeof raw.suggestedAction === 'string' ? raw.suggestedAction : null,
+      };
+      if (typeof raw.resolvedAt === 'number') {
+        normalized.resolvedAt = raw.resolvedAt;
+      }
+      return normalized;
+    })
+    .filter((item): item is RitualCheckin => Boolean(item));
+}
+
 function goalLabel(amount?: number, unit?: GoalUnit) {
   if (!amount || !unit) {
     return '';
   }
   const formattedAmount = Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(2)));
-  const unitLabel = unit === 'liters' ? 'L' : unit === 'minutes' ? 'min' : unit;
-  return unit === 'liters' || unit === 'minutes' ? `${formattedAmount}${unitLabel}` : `${formattedAmount} ${unitLabel}`;
+  const unitLabel = unit === 'liters' ? 'L' : unit === 'minutes' ? 'min' : unit === 'hours' ? 'hrs' : unit;
+  return unit === 'liters' || unit === 'minutes' || unit === 'hours' ? `${formattedAmount}${unitLabel}` : `${formattedAmount} ${unitLabel}`;
 }
 
 function formatReminderTime(value?: string) {
@@ -685,27 +865,168 @@ function ritualReminderExplanation(name: string, goalAmount: number | undefined,
   return `If ${displayName} isn't marked done by ${formatReminderTime(reminderTime)}, Rituals will send a gentle nudge - "${body}"`;
 }
 
+function reminderWindowLabel(reminderTime?: string) {
+  if (!reminderTime) {
+    return 'Today';
+  }
+  const start = formatReminderTime(reminderTime);
+  const endDate = dateFromReminderTime(reminderTime);
+  endDate.setHours(endDate.getHours() + 1);
+  return `${start} - ${formatReminderTime(timeValueFromDate(endDate))}`;
+}
+
+function reminderWindowClosed(ritual: Ritual, now = new Date()) {
+  if (!ritual.reminderTime || ritual.doneToday) {
+    return false;
+  }
+  const close = dateFromReminderTime(ritual.reminderTime);
+  close.setHours(close.getHours() + 1);
+  return now.getTime() > close.getTime();
+}
+
+function recentPatternForReason(checkins: RitualCheckin[], reason: string, date = todayIso()) {
+  const normalized = reason.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  const start = new Date(`${date}T00:00:00`);
+  start.setDate(start.getDate() - 6);
+  return checkins.filter((checkin) => {
+    const checkinTime = new Date(`${checkin.date}T00:00:00`).getTime();
+    return checkinTime >= start.getTime() && checkin.userReasonRaw.trim().toLowerCase() === normalized;
+  }).length >= 2;
+}
+
+function localFloCheckinReply(ritual: Ritual, reason: string, tone: FloTone, hasPattern: boolean) {
+  const lower = reason.toLowerCase();
+  const aligned = /chose|family|friend|rest|sleep|work|study|health|needed/i.test(lower) && Boolean(ritual.why);
+  const circumstantial = /came up|traffic|sick|ill|urgent|emergency|late|travel|meeting/i.test(lower);
+  const category: CheckinCategory = hasPattern ? 'pattern' : aligned ? 'aligned_tradeoff' : circumstantial ? 'circumstantial' : 'drift';
+  const protect = category === 'aligned_tradeoff' || category === 'circumstantial';
+  const suggestedAction = category === 'drift' || category === 'pattern'
+    ? tone === 'coach' && ritual.reminderTime ? 'Move to mornings?' : 'Make it smaller tomorrow?'
+    : null;
+  const whyLine = ritual.why ? ` You started this because it ${ritual.why.replace(/\.$/, '')}.` : '';
+  const toneLine = tone === 'direct'
+    ? ' Be honest about whether this was a real tradeoff or just drift.'
+    : tone === 'coach'
+      ? ' Let us make the next version easier to start.'
+      : ' That is useful information, not a failure.';
+  const patternLine = hasPattern ? ' This same reason has shown up a few times this week, so it may be a pattern worth adjusting.' : '';
+  return {
+    message: `Thanks for naming it.${whyLine}${patternLine}${toneLine}`,
+    category,
+    protect_streak: protect,
+    suggested_action: suggestedAction,
+  };
+}
+
+async function generateFloCheckinReply(ritual: Ritual, reason: string, tone: FloTone, hasPattern: boolean) {
+  const fallback = localFloCheckinReply(ritual, reason, tone, hasPattern);
+  if (!nvidiaApiKey) {
+    return fallback;
+  }
+
+  try {
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${nvidiaApiKey}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'moonshotai/kimi-k3',
+        max_tokens: 600,
+        temperature: 0.7,
+        stream: false,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are Flo, the companion inside a ritual habit app. A user missed a scheduled ritual and gave a reason. Respond briefly in 2-4 sentences, warm and curious, never a scold. Return strict JSON with message, category, protect_streak, suggested_action. Category must be aligned_tradeoff, circumstantial, drift, or pattern.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              ritual_name: ritual.name,
+              scheduled_window: reminderWindowLabel(ritual.reminderTime),
+              ritual_why: ritual.why ?? '',
+              user_reason: reason,
+              recent_pattern: hasPattern ? 'This is the 3rd+ similar miss this week.' : undefined,
+              tone_setting: tone,
+            }),
+          },
+        ],
+      }),
+    });
+    const json = await response.json();
+    const content = json?.choices?.[0]?.message?.content;
+    const parsed = typeof content === 'string' ? JSON.parse(content.replace(/^```json\s*|\s*```$/g, '')) : null;
+    if (
+      parsed
+      && typeof parsed.message === 'string'
+      && isCheckinCategory(parsed.category)
+      && typeof parsed.protect_streak === 'boolean'
+    ) {
+      return {
+        message: parsed.message,
+        category: parsed.category as CheckinCategory,
+        protect_streak: parsed.protect_streak,
+        suggested_action: typeof parsed.suggested_action === 'string' ? parsed.suggested_action : null,
+      };
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
 function normalizeState(parsed: Partial<SavedFlowState>): SavedFlowState {
   const rituals = Array.isArray(parsed.rituals) && parsed.rituals.length ? parsed.rituals : seedRituals;
   const today = todayIso();
   const dateDistance = daysBetweenIso(parsed.stateDate, today);
-  return {
-    rituals: rituals.map((ritual, index) => ({
+  const normalizedRituals = rituals.map((ritual, index) => {
+    const rawWeekly = Array.isArray(ritual.weekly) && ritual.weekly.length === 7
+      ? ritual.weekly
+      : [0, 0, 0, 0, 0, 0, ritual.doneToday ? 1 : 0];
+    const rawHeat = Array.isArray(ritual.heat) && ritual.heat.length === 30
+      ? ritual.heat
+      : Array.from({ length: 30 }, (_, heatIndex) => (heatIndex === 29 && ritual.doneToday ? 1 : 0));
+    const missedSinceLastOpen = dateDistance > 1 || (dateDistance === 1 && !ritual.doneToday);
+    const nextStreak = dateDistance > 0 && missedSinceLastOpen ? 0 : ritual.streakDays ?? 0;
+    return {
       ...ritual,
       paletteKey: ritual.paletteKey && habitPalette[ritual.paletteKey] ? ritual.paletteKey : paletteRotation[index % paletteRotation.length],
+      why: typeof ritual.why === 'string' && ritual.why.trim() ? ritual.why.trim() : undefined,
       goalAmount: typeof ritual.goalAmount === 'number' && Number.isFinite(ritual.goalAmount) ? ritual.goalAmount : undefined,
       goalUnit: isGoalUnit(ritual.goalUnit) ? ritual.goalUnit : undefined,
       reminderTime: typeof ritual.reminderTime === 'string' && ritual.reminderTime ? ritual.reminderTime : undefined,
       doneToday: dateDistance > 0 ? false : ritual.doneToday,
       completedAt: dateDistance > 0 ? null : typeof ritual.completedAt === 'number' && Number.isFinite(ritual.completedAt) ? ritual.completedAt : null,
-      weekly: shiftBinarySeries(Array.isArray(ritual.weekly) && ritual.weekly.length === 7 ? ritual.weekly : [0, 0, 0, 0, 0, 0, ritual.doneToday ? 1 : 0], dateDistance),
-      heat: shiftBinarySeries(Array.isArray(ritual.heat) && ritual.heat.length === 30 ? ritual.heat : Array.from({ length: 30 }, (_, i) => (i === 29 && ritual.doneToday ? 1 : 0)), dateDistance),
-      bestStreakDays: ritual.bestStreakDays ?? ritual.streakDays ?? 0,
+      weekly: shiftBinarySeries(rawWeekly, dateDistance),
+      heat: shiftBinarySeries(rawHeat, dateDistance),
+      streakDays: nextStreak,
+      bestStreakDays: Math.max(ritual.bestStreakDays ?? 0, nextStreak),
       createdAt: ritual.createdAt ?? Date.now() + index,
-    })),
-    totalActiveRituals: parsed.totalActiveRituals ?? rituals.length,
+    };
+  });
+  const combinedHeat = combinedHeatFromRituals(normalizedRituals);
+  const missedAnyFullDay = dateDistance > 1 || (dateDistance === 1 && !rituals.some((ritual) => ritual.doneToday));
+  const parsedStreak = typeof parsed.overallStreak === 'number' && Number.isFinite(parsed.overallStreak) ? parsed.overallStreak : currentStreakFromHeat(combinedHeat.map((value) => (value > 0 ? 1 : 0)));
+  const lastSevenBeforeTodayAreClean = normalizedRituals.length > 0
+    && normalizedRituals.every((ritual) => ritual.heat.slice(-8, -1).length === 7 && ritual.heat.slice(-8, -1).every(Boolean));
+  const parsedHearts = typeof parsed.graceHearts === 'number' && Number.isFinite(parsed.graceHearts) ? parsed.graceHearts : 5;
+  const nextGraceHearts = dateDistance > 0 && lastSevenBeforeTodayAreClean ? clamp(parsedHearts + 1, 0, 5) : clamp(parsedHearts, 0, 5);
+  return {
+    rituals: normalizedRituals,
+    checkins: normalizeCheckins(parsed.checkins),
+    totalActiveRituals: normalizedRituals.length,
     baseDoneFromOtherHabits: dateDistance > 0 ? 0 : parsed.baseDoneFromOtherHabits ?? 0,
-    settings: { ...seedSettings, ...(parsed.settings ?? {}) },
+    overallStreak: dateDistance > 0 && missedAnyFullDay ? 0 : parsedStreak,
+    rhythmPoints: typeof parsed.rhythmPoints === 'number' && Number.isFinite(parsed.rhythmPoints) ? Math.max(0, parsed.rhythmPoints) : 0,
+    graceHearts: nextGraceHearts,
+    onboardingDream: isDreamId(parsed.onboardingDream) ? parsed.onboardingDream : null,
+    settings: { ...seedSettings, ...(parsed.settings ?? {}), floTone: isFloTone(parsed.settings?.floTone) ? parsed.settings.floTone : seedSettings.floTone },
     insight: parsed.insight ?? '',
     stateDate: today,
   };
@@ -763,6 +1084,30 @@ function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfi
     habitFocus: profile?.habit_focus ?? undefined,
     profileComplete: profile?.profile_complete ?? false,
     profileSetupSkipped: profile?.profile_setup_skipped ?? false,
+  };
+}
+
+function isAuthNetworkError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /fetch failed|network request failed|sslhandshake|certificate|trust anchor|failed to fetch/i.test(message);
+}
+
+function cleanAuthError(error: unknown, fallback: string) {
+  if (isAuthNetworkError(error)) {
+    return 'Secure connection to Supabase failed on this device. Your account can continue locally now and sync when the device network/certificate trust is fixed.';
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function localAuthAccount(username: string, password: string, email: string, name?: string): AuthAccount {
+  return {
+    id: `local-${Date.now()}`,
+    username,
+    password,
+    email,
+    name: name || username,
+    profileComplete: false,
+    profileSetupSkipped: false,
   };
 }
 
@@ -1075,37 +1420,28 @@ function isCompletionInUsualWindow(ritual: Ritual) {
   return Math.abs(ritual.completedAt - reminderHour) <= 1;
 }
 
-function derivedHeaderMetrics(rituals: Ritual[]): HeaderMetric[] {
-  const combinedHeat = combinedHeatFromRituals(rituals);
-  const daysWithAnyCompletion = combinedHeat.map((value) => (value > 0 ? 1 : 0));
-  const currentOverallStreak = currentStreakFromHeat(daysWithAnyCompletion);
-  const completionPoints = rituals.reduce((sum, ritual) => sum + ritual.heat.reduce((total, value) => total + (value ? 10 : 0), 0), 0);
-  const timeWindowBonus = rituals.reduce((sum, ritual) => sum + (isCompletionInUsualWindow(ritual) ? 5 : 0), 0);
-  const firstActiveDay = daysWithAnyCompletion.findIndex(Boolean);
-  const missedDays = firstActiveDay >= 0
-    ? daysWithAnyCompletion.slice(firstActiveDay).filter((value) => !value).length
-    : 0;
+function derivedHeaderMetrics(overallStreak: number, rhythmPoints: number, graceHearts: number): HeaderMetric[] {
 
   return [
     {
       id: 'streak',
       icon: '🔥',
-      value: currentOverallStreak,
-      label: 'Streak: consecutive days with at least one completed ritual.',
+      value: overallStreak,
+      label: "Streak: Consecutive days you've completed at least one ritual. Resets if a full day passes with nothing logged unless a Grace Heart covers it.",
       color: '#FF9F43',
     },
     {
       id: 'points',
       icon: '💎',
-      value: completionPoints + timeWindowBonus,
-      label: 'Rhythm Points: +10 per completion, +5 when done near its reminder time.',
+      value: rhythmPoints,
+      label: 'Rhythm Points: +10 for every completion, +5 bonus when it lands inside your usual time window.',
       color: '#4FA8FF',
     },
     {
       id: 'hearts',
       icon: '💗',
-      value: clamp(5 - missedDays, 0, 5),
-      label: 'Grace Hearts: forgiveness buffer for missed full days.',
+      value: graceHearts,
+      label: 'Grace Hearts: Miss a day? Spend one to protect your streak. Regain 1 per fully clean week, up to 5.',
       color: '#FF6A96',
     },
   ];
@@ -1135,6 +1471,7 @@ function ritualsFromSupabaseRows(habits: SupabaseHabit[], logs: SupabaseHabitLog
       name: habit.name,
       icon: habit.icon,
       paletteKey,
+      why: typeof habit.why === 'string' && habit.why.trim() ? habit.why.trim() : undefined,
       goalAmount: typeof habit.goal_amount === 'number' && Number.isFinite(habit.goal_amount) ? habit.goal_amount : undefined,
       goalUnit: isGoalUnit(habit.goal_unit) ? habit.goal_unit : undefined,
       reminderTime: typeof habit.reminder_time === 'string' ? habit.reminder_time.slice(0, 5) : undefined,
@@ -1157,7 +1494,7 @@ async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowS
   const since = isoDaysBack(30)[0];
   const { data: habits, error: habitsError } = await supabase
     .from('habits')
-    .select('id,name,icon,color,palette_key,goal_amount,goal_unit,reminder_time,created_at')
+    .select('id,name,icon,color,palette_key,why,goal_amount,goal_unit,reminder_time,created_at')
     .eq('user_id', userId)
     .eq('is_archived', false)
     .order('created_at', { ascending: true });
@@ -1178,14 +1515,37 @@ async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowS
 
   const profile = await supabase
     .from('profiles')
-    .select('dark_theme,haptics_enabled,push_enabled')
+    .select('dark_theme,haptics_enabled,push_enabled,flo_tone')
     .eq('id', userId)
     .maybeSingle();
-  const profileData = profile.data as Pick<SupabaseProfile, 'dark_theme' | 'haptics_enabled' | 'push_enabled'> | null;
+  const profileData = profile.data as Pick<SupabaseProfile, 'dark_theme' | 'haptics_enabled' | 'push_enabled' | 'flo_tone'> | null;
+  let checkins: RitualCheckin[] = [];
+  try {
+    const { data } = await supabase
+      .from('ritual_checkins')
+      .select('id,ritual_id,habit_id,checkin_date,date,scheduled_window,user_reason_raw,category,flo_message,streak_protected,suggested_action,created_at')
+      .eq('user_id', userId)
+      .gte('checkin_date', isoDaysBack(30)[0]);
+    checkins = ((data ?? []) as SupabaseRitualCheckin[]).map((row, index) => ({
+      id: row.id || `remote-checkin-${index}`,
+      ritualId: row.ritual_id || row.habit_id || '',
+      date: row.checkin_date || row.date || todayIso(),
+      scheduledWindow: row.scheduled_window || 'Today',
+      userReasonRaw: row.user_reason_raw || 'Unresolved',
+      category: isCheckinCategory(row.category) ? row.category : 'drift',
+      floMessage: row.flo_message || 'Thanks for checking in.',
+      streakProtected: Boolean(row.streak_protected),
+      suggestedAction: row.suggested_action ?? null,
+      resolvedAt: row.created_at ? Date.parse(row.created_at) : undefined,
+    })).filter((checkin) => Boolean(checkin.ritualId));
+  } catch {
+    checkins = [];
+  }
   const rituals = ritualsFromSupabaseRows((habits ?? []) as SupabaseHabit[], (logs ?? []) as SupabaseHabitLog[]);
 
   return {
     rituals,
+    checkins,
     totalActiveRituals: rituals.length,
     baseDoneFromOtherHabits: 0,
     settings: {
@@ -1193,6 +1553,7 @@ async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowS
       darkTheme: profileData?.dark_theme ?? seedSettings.darkTheme,
       haptics: profileData?.haptics_enabled ?? seedSettings.haptics,
       pushNotifications: profileData?.push_enabled ?? seedSettings.pushNotifications,
+      floTone: isFloTone(profileData?.flo_tone) ? profileData.flo_tone : seedSettings.floTone,
     },
   };
 }
@@ -1239,15 +1600,12 @@ function useEntranceAnimation(trigger: string | number, reduceMotion: boolean) {
 
 function AppRoot() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
     Fraunces_400Regular,
     Fraunces_500Medium,
     Fraunces_600SemiBold,
-    Fraunces_700Bold,
   });
   const reduceMotion = useReducedMotion();
   const [showSplash, setShowSplash] = useState(true);
@@ -1256,6 +1614,7 @@ function AppRoot() {
     if (!fontsLoaded) {
       return undefined;
     }
+    SplashScreen.hideAsync().catch(() => undefined);
     const timer = setTimeout(() => setShowSplash(false), reduceMotion ? 900 : 2800);
     return () => clearTimeout(timer);
   }, [fontsLoaded, reduceMotion]);
@@ -1267,6 +1626,7 @@ function AppRoot() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
+        <NavigationBar hidden={false} style="dark" />
         <AuthenticatedApp />
         {showSplash ? <LaunchSplash reduceMotion={reduceMotion} onSkip={() => setShowSplash(false)} /> : null}
       </SafeAreaProvider>
@@ -1521,15 +1881,30 @@ function AuthenticatedApp() {
 
     const hydrate = async () => {
       if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        if (data.session?.user) {
-          const profile = await getProfileForUser(data.session.user);
-          const nextAccount = authAccountFromUser(data.session.user, profile);
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.user) {
+            const profile = await getProfileForUser(data.session.user);
+            const nextAccount = authAccountFromUser(data.session.user, profile);
+            if (mounted) {
+              setAccount(nextAccount);
+              setSignedIn(true);
+              setProfileSetupSource(null);
+              setReady(true);
+            }
+            return;
+          }
+        } catch {
+          // Fall through to local auth so emulator/device TLS issues do not block the app.
+        }
+        const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+        const parsed = stored ? normalizeAuth(JSON.parse(stored) as Partial<StoredAuth>) : normalizeAuth(null);
+        if (parsed.signedIn) {
           if (mounted) {
-            setAccount(nextAccount);
+            setAccount(parsed.account);
             setSignedIn(true);
-            if (nextAccount.profileComplete === false && !nextAccount.profileSetupSkipped) {
-              setProfileSetupSource('create');
+            if (parsed.account.profileComplete === false && !parsed.account.profileSetupSkipped) {
+              setProfileSetupSource(null);
             }
           }
         }
@@ -1545,7 +1920,7 @@ function AuthenticatedApp() {
         setAccount(parsed.account);
         setSignedIn(parsed.signedIn);
         if (parsed.signedIn && parsed.account.profileComplete === false && !parsed.account.profileSetupSkipped) {
-          setProfileSetupSource('create');
+          setProfileSetupSource(null);
         }
         setReady(true);
       }
@@ -1571,6 +1946,7 @@ function AuthenticatedApp() {
       if (mounted) {
         setAccount(nextAccount);
         setSignedIn(true);
+        setProfileSetupSource(null);
       }
     }).data.subscription;
 
@@ -1651,9 +2027,7 @@ function AuthenticatedApp() {
           setAccount(nextAccount);
           setSignedIn(true);
           setProfileSetupSource(null);
-          if (!supabase) {
-            saveLocalAuth(nextAccount, true);
-          }
+          saveLocalAuth(nextAccount, true);
         }}
         onCreate={(nextAccount) => {
           const createdAccount = {
@@ -1663,16 +2037,12 @@ function AuthenticatedApp() {
           };
           setAccount(createdAccount);
           setSignedIn(true);
-          setProfileSetupSource('create');
-          if (!supabase) {
-            saveLocalAuth(createdAccount, true);
-          }
+          setProfileSetupSource(null);
+          saveLocalAuth(createdAccount, true);
         }}
         onResetPassword={(nextAccount) => {
           setAccount(nextAccount);
-          if (!supabase) {
-            saveLocalAuth(nextAccount, false);
-          }
+          saveLocalAuth(nextAccount, false);
         }}
       />
     );
@@ -1701,6 +2071,7 @@ function AuthenticatedApp() {
       onLogout={() => {
         if (supabase) {
           supabase.auth.signOut().catch(() => undefined);
+          saveLocalAuth(account, false);
           setSignedIn(false);
           setProfileSetupSource(null);
           return;
@@ -1782,34 +2153,40 @@ function AuthGate({
       setError('Enter your email or username and password.');
       return;
     }
+    const localMatches = matchesAccount(account);
+    const defaultMatches = matchesAccount(DEFAULT_AUTH_ACCOUNT);
+    if (defaultMatches) {
+      onLogin(DEFAULT_AUTH_ACCOUNT);
+      return;
+    }
     if (supabase) {
-      if (matchesAccount(DEFAULT_AUTH_ACCOUNT)) {
-        onLogin(DEFAULT_AUTH_ACCOUNT);
-        return;
-      }
       try {
         setSubmitting(true);
         const email = await resolveEmailForIdentifier(identifier);
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError || !data.user) {
+          if (localMatches) {
+            onLogin(account);
+            return;
+          }
           setError(signInError?.message ?? 'Email/username or password is incorrect.');
           return;
         }
         const profile = await getProfileForUser(data.user);
-        onLogin(authAccountFromUser(data.user, profile));
+        onLogin({ ...authAccountFromUser(data.user, profile), password });
       } catch (authError) {
-        setError(authError instanceof Error ? authError.message : 'Unable to sign in.');
+        if (localMatches) {
+          onLogin(account);
+          return;
+        }
+        setError(cleanAuthError(authError, 'Unable to sign in.'));
       } finally {
         setSubmitting(false);
       }
       return;
     }
-    if (matchesAccount(account)) {
+    if (localMatches) {
       onLogin(account);
-      return;
-    }
-    if (matchesAccount(DEFAULT_AUTH_ACCOUNT)) {
-      onLogin(DEFAULT_AUTH_ACCOUNT);
       return;
     }
     setError('Email/username or password is incorrect.');
@@ -1858,24 +2235,36 @@ function AuthGate({
           : null;
         if (!data.session) {
           setMessage('Account created. Check your email to confirm, then sign in.');
-          setMode('signIn');
-          setIdentifier(trimmedEmail);
-          setPassword('');
+          onCreate({
+            ...authAccountFromUser(data.user, null),
+            username,
+            password,
+            email: trimmedEmail,
+            name: trimmedName,
+            profileComplete: false,
+            profileSetupSkipped: false,
+          });
           return;
         }
-        onCreate(authAccountFromUser(data.user, profile));
+        onCreate({
+          ...authAccountFromUser(data.user, profile),
+          password,
+          profileComplete: false,
+          profileSetupSkipped: false,
+        });
       } catch (authError) {
-        setError(authError instanceof Error ? authError.message : 'Unable to create account.');
+        if (isAuthNetworkError(authError)) {
+          setMessage('Supabase is unreachable from this device, so Rituals saved this account locally for now.');
+          onCreate(localAuthAccount(username, password, trimmedEmail, trimmedName));
+          return;
+        }
+        setError(cleanAuthError(authError, 'Unable to create account.'));
       } finally {
         setSubmitting(false);
       }
       return;
     }
-    onCreate({
-      username,
-      password,
-      email: trimmedEmail,
-    });
+    onCreate(localAuthAccount(username, password, trimmedEmail, trimmedName));
   };
 
   const submitReset = async () => {
@@ -1978,7 +2367,7 @@ function AuthGate({
                 <AuthHero mode={mode} reduceMotion={reduceMotion} split={useSplitAuthLayout} />
               </View>
 
-              <Animated.View style={[styles.authCardWrap, useSplitAuthLayout && styles.authCardWrapSplit, cardAnim]}>
+              <Animated.View style={[styles.authCardWrap, isCreate && styles.authCardWrapCreate, useSplitAuthLayout && styles.authCardWrapSplit, cardAnim]}>
                 <GradientCard
                   style={[
                     styles.authCard,
@@ -2146,6 +2535,177 @@ function AuthGate({
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function OnboardingDreamFlow({
+  reduceMotion,
+  onComplete,
+}: {
+  reduceMotion: boolean;
+  onComplete: (
+    dream: DreamId,
+    starters: Array<{ name: string; icon: string; paletteKey: PaletteKey; goalAmount?: number; goalUnit?: GoalUnit; reminderTime: string }>,
+  ) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= TABLET_MIN_WIDTH;
+  const [step, setStep] = useState<OnboardingStep>('dream');
+  const [selectedDream, setSelectedDream] = useState<DreamId | null>(null);
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+  const selectedOption = dreamOptions.find((option) => option.id === selectedDream) ?? null;
+  const starters = selectedDream ? starterRitualsByDream[selectedDream] : [];
+  const selectedStarters = starters.filter((starter) => enabled[starter.name] !== false);
+  const contentMaxWidth = isTablet
+    ? responsiveMaxWidth(width, PROFILE_SETUP_MAX_WIDTH, 28)
+    : undefined;
+
+  useEffect(() => {
+    if (!selectedDream) {
+      return;
+    }
+    setEnabled(Object.fromEntries(starterRitualsByDream[selectedDream].map((starter) => [starter.name, true])));
+  }, [selectedDream]);
+
+  const continueToStarters = () => {
+    if (selectedDream) {
+      setStep('starters');
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="dark" />
+      <LinearGradient colors={['#EEF1F4', colors.page]} style={styles.stage}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.onboardingScroll,
+            {
+              paddingTop: Math.max(insets.top + 14, 28),
+              paddingBottom: insets.bottom + 36,
+              maxWidth: contentMaxWidth,
+            },
+          ]}
+        >
+          <View style={styles.onboardingProgress}>
+            <LinearGradient colors={[colors.blue1, '#2E8FE8']} style={styles.onboardingProgressDot} />
+            <View style={[styles.onboardingProgressDot, step === 'starters' ? styles.onboardingProgressDotActive : styles.onboardingProgressDotEmpty]} />
+          </View>
+
+          <View style={styles.onboardingHeader}>
+            <LogoMark size={58} reduceMotion={reduceMotion} />
+            <Text style={styles.onboardingTitle}>
+              {step === 'dream' ? "What's your ritual dream?" : `Starter rituals for "${selectedOption?.title ?? 'your dream'}"`}
+            </Text>
+            <Text style={styles.onboardingSubtitle}>
+              {step === 'dream' ? "We'll shape your first rituals around this." : 'These become your real starting rituals. Keep what fits.'}
+            </Text>
+          </View>
+
+          {step === 'dream' ? (
+            <>
+              <View style={styles.dreamGrid}>
+                {dreamOptions.map((option) => {
+                  const selected = selectedDream === option.id;
+                  const palette = habitPalette[option.paletteKey];
+                  return (
+                    <PressScale
+                      key={option.id}
+                      reduceMotion={reduceMotion}
+                      onPress={() => setSelectedDream(option.id)}
+                      style={[
+                        styles.dreamCard,
+                        selected && {
+                          borderColor: colors.blue1,
+                          shadowColor: colors.blue1,
+                          shadowOpacity: 0.22,
+                          elevation: 4,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.dreamIcon, { backgroundColor: palette.bg[0] }]}>
+                        <Text style={styles.dreamIconText}>{option.icon}</Text>
+                      </View>
+                      <View style={styles.dreamCopy}>
+                        <Text style={styles.dreamTitle}>{option.title}</Text>
+                        <Text style={styles.dreamDescription}>{option.description}</Text>
+                      </View>
+                      {selected ? (
+                        <View style={styles.dreamSelected}>
+                          <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                        </View>
+                      ) : null}
+                    </PressScale>
+                  );
+                })}
+              </View>
+
+              <View style={styles.onboardingNote}>
+                <Sparkles size={16} color={colors.blue1} strokeWidth={2.4} />
+                <Text style={styles.onboardingNoteText}>Your choice drives starter suggestions now and helps the coach prioritize future insights.</Text>
+              </View>
+
+              <PressScale
+                reduceMotion={reduceMotion}
+                disabled={!selectedDream}
+                onPress={continueToStarters}
+                style={[styles.authPrimaryButton, !selectedDream && styles.authPrimaryButtonDisabled]}
+              >
+                <Text style={styles.authPrimaryText}>Continue</Text>
+                <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.7} />
+              </PressScale>
+            </>
+          ) : (
+            <>
+              <View style={styles.starterList}>
+                {starters.map((starter) => {
+                  const checked = enabled[starter.name] !== false;
+                  const palette = habitPalette[starter.paletteKey];
+                  return (
+                    <Pressable
+                      key={starter.name}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked }}
+                      onPress={() => setEnabled((current) => ({ ...current, [starter.name]: !checked }))}
+                      style={styles.starterRow}
+                    >
+                      <View style={[styles.starterIcon, { backgroundColor: palette.bg[0] }]}>
+                        <Text style={styles.starterIconText}>{starter.icon}</Text>
+                      </View>
+                      <View style={styles.starterCopy}>
+                        <Text style={styles.starterName}>{starter.name}</Text>
+                        <Text style={styles.starterMeta}>
+                          {[goalLabel(starter.goalAmount, starter.goalUnit), formatReminderTime(starter.reminderTime)].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                      <View style={[styles.amountSwitch, checked && styles.amountSwitchOn]}>
+                        <View style={[styles.amountSwitchKnob, checked && styles.amountSwitchKnobOn]} />
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.modalActions}>
+                <Pressable accessibilityRole="button" onPress={() => setStep('dream')} style={styles.btnSecondary}>
+                  <Text style={styles.btnSecondaryText}>Back</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!selectedDream || !selectedStarters.length}
+                  onPress={() => selectedDream && onComplete(selectedDream, selectedStarters)}
+                  style={[styles.btnPrimary, (!selectedDream || !selectedStarters.length) && styles.btnPrimaryDisabled]}
+                >
+                  <Text style={styles.btnPrimaryText}>Start my rituals</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </LinearGradient>
+    </View>
+  );
 }
 
 function ProfileSetupScreen({
@@ -2585,7 +3145,7 @@ function AuthHero({ mode, reduceMotion, split = false }: { mode: AuthMode; reduc
   return (
     <View style={[styles.authHero, compact && styles.authHeroCompact, split && styles.authHeroSplit]}>
       <AnimatedWaveBackground reduceMotion={reduceMotion} compact={compact} />
-      <View style={[styles.authHeroContent, split && styles.authHeroContentSplit]}>
+      <View style={[styles.authHeroContent, compact && styles.authHeroContentCompact, split && styles.authHeroContentSplit]}>
         <LogoMark size={split ? 78 : compact ? 52 : 64} reduceMotion={reduceMotion} />
         <Text style={[isCreate ? styles.authCreateTitle : styles.authWordmark, split && styles.authHeroTitleSplit]}>
           {isCreate ? 'Start your ritual' : 'Rituals'}
@@ -2952,10 +3512,16 @@ function FlowApp({
   const reduceMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState<TabKey>('today');
   const [rituals, setRituals] = useState(defaultState.rituals);
+  const [checkins, setCheckins] = useState(defaultState.checkins);
   const [totalActiveRituals, setTotalActiveRituals] = useState(defaultState.totalActiveRituals);
   const [baseDoneFromOtherHabits, setBaseDoneFromOtherHabits] = useState(defaultState.baseDoneFromOtherHabits);
+  const [overallStreak, setOverallStreak] = useState(defaultState.overallStreak);
+  const [rhythmPoints, setRhythmPoints] = useState(defaultState.rhythmPoints);
+  const [graceHearts, setGraceHearts] = useState(defaultState.graceHearts);
+  const [onboardingDream, setOnboardingDream] = useState<DreamId | null>(defaultState.onboardingDream ?? null);
   const [settings, setSettings] = useState(defaultState.settings);
   const [insight, setInsight] = useState(defaultState.insight);
+  const [stateDate, setStateDate] = useState(defaultState.stateDate ?? todayIso());
   const [selectedRitualId, setSelectedRitualId] = useState(defaultState.rituals[0]?.id ?? '');
   const [addOpen, setAddOpen] = useState(false);
   const [editingRitualId, setEditingRitualId] = useState<string | null>(null);
@@ -2967,6 +3533,7 @@ function FlowApp({
   const isTablet = width >= TABLET_MIN_WIDTH;
   const appHorizontalPadding = isTablet ? 28 : 20;
   const storageKey = useMemo(() => (userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY), [userId]);
+  const canUseRemote = Boolean(supabase && userId && !userId.startsWith('local-'));
 
   useEffect(() => {
     let mounted = true;
@@ -2974,10 +3541,16 @@ function FlowApp({
 
     const applyState = (state: SavedFlowState) => {
       setRituals(state.rituals);
+      setCheckins(state.checkins);
       setTotalActiveRituals(state.totalActiveRituals);
       setBaseDoneFromOtherHabits(state.baseDoneFromOtherHabits);
+      setOverallStreak(state.overallStreak);
+      setRhythmPoints(state.rhythmPoints);
+      setGraceHearts(state.graceHearts);
+      setOnboardingDream(state.onboardingDream ?? null);
       setSettings(state.settings);
       setInsight(state.insight);
+      setStateDate(state.stateDate ?? todayIso());
       setSelectedRitualId(state.rituals[0]?.id ?? '');
     };
 
@@ -2987,11 +3560,13 @@ function FlowApp({
     };
 
     const hydrate = async () => {
-      if (supabase && userId) {
+      const local = await loadLocal();
+      if (supabase && canUseRemote && userId) {
         try {
           const remote = await loadSupabaseFlowState(userId);
           if (remote) {
-            const state = normalizeState({ ...defaultState, ...remote });
+            const remoteState = normalizeState({ ...defaultState, ...remote });
+            const state = remoteState.rituals.length || !local.rituals.length ? remoteState : local;
             if (mounted) {
               applyState(state);
             }
@@ -3007,7 +3582,6 @@ function FlowApp({
         }
       }
 
-      const local = await loadLocal();
       if (mounted) {
         applyState(local);
       }
@@ -3024,7 +3598,7 @@ function FlowApp({
     return () => {
       mounted = false;
     };
-  }, [storageKey, userId]);
+  }, [canUseRemote, storageKey, userId]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -3032,14 +3606,67 @@ function FlowApp({
     }
     const state: SavedFlowState = {
       rituals,
+      checkins,
       totalActiveRituals,
       baseDoneFromOtherHabits,
+      overallStreak,
+      rhythmPoints,
+      graceHearts,
+      onboardingDream,
       settings,
       insight,
-      stateDate: todayIso(),
+      stateDate,
     };
     AsyncStorage.setItem(storageKey, JSON.stringify(state)).catch(() => undefined);
-  }, [baseDoneFromOtherHabits, hydrated, insight, rituals, settings, storageKey, totalActiveRituals]);
+  }, [baseDoneFromOtherHabits, checkins, graceHearts, hydrated, insight, onboardingDream, overallStreak, rhythmPoints, rituals, settings, stateDate, storageKey, totalActiveRituals]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return undefined;
+    }
+
+    const rolloverIfNeeded = () => {
+      if (stateDate === todayIso()) {
+        return;
+      }
+      const next = normalizeState({
+        rituals,
+        checkins,
+        totalActiveRituals,
+        baseDoneFromOtherHabits,
+        overallStreak,
+        rhythmPoints,
+        graceHearts,
+        onboardingDream,
+        settings,
+        insight,
+        stateDate,
+      });
+      setRituals(next.rituals);
+      setCheckins(next.checkins);
+      setTotalActiveRituals(next.totalActiveRituals);
+      setBaseDoneFromOtherHabits(next.baseDoneFromOtherHabits);
+      setOverallStreak(next.overallStreak);
+      setRhythmPoints(next.rhythmPoints);
+      setGraceHearts(next.graceHearts);
+      setOnboardingDream(next.onboardingDream ?? null);
+      setSettings(next.settings);
+      setInsight(next.insight);
+      setStateDate(next.stateDate ?? todayIso());
+    };
+
+    rolloverIfNeeded();
+    const timer = setInterval(rolloverIfNeeded, 60000);
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        rolloverIfNeeded();
+      }
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [baseDoneFromOtherHabits, checkins, graceHearts, hydrated, insight, onboardingDream, overallStreak, rhythmPoints, rituals, settings, stateDate, totalActiveRituals]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -3055,6 +3682,22 @@ function FlowApp({
   const heroPercent = totalActiveRituals ? Math.round((doneCount / totalActiveRituals) * 100) : 0;
   const selectedRitual = rituals.find((ritual) => ritual.id === selectedRitualId) ?? rituals[0];
   const editingRitual = editingRitualId ? rituals.find((ritual) => ritual.id === editingRitualId) ?? null : null;
+  const todayCheckinIds = useMemo(
+    () => new Set(checkins.filter((checkin) => checkin.date === todayIso()).map((checkin) => checkin.ritualId)),
+    [checkins],
+  );
+  const pendingCheckinRituals = useMemo(
+    () => rituals.filter((ritual) => reminderWindowClosed(ritual) && !todayCheckinIds.has(ritual.id)),
+    [rituals, todayCheckinIds],
+  );
+  const weeklyPatternCheckin = useMemo(() => {
+    const start = new Date(`${todayIso()}T00:00:00`);
+    start.setDate(start.getDate() - 6);
+    return checkins.find((checkin) => {
+      const checkinTime = new Date(`${checkin.date}T00:00:00`).getTime();
+      return checkinTime >= start.getTime() && checkin.category === 'pattern';
+    }) ?? null;
+  }, [checkins]);
 
   useEffect(() => {
     if (!selectedRitual && rituals[0]) {
@@ -3101,6 +3744,111 @@ function FlowApp({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
   }, [settings.haptics]);
 
+  const persistCheckinsRemote = useCallback((records: RitualCheckin[]) => {
+    if (!supabase || !canUseRemote || !userId || !records.length) {
+      return;
+    }
+    supabase
+      .from('ritual_checkins')
+      .upsert(
+        records.map((record) => ({
+          id: record.id,
+          user_id: userId,
+          ritual_id: record.ritualId,
+          habit_id: record.ritualId,
+          checkin_date: record.date,
+          scheduled_window: record.scheduledWindow,
+          user_reason_raw: record.userReasonRaw,
+          category: record.category,
+          flo_message: record.floMessage,
+          streak_protected: record.streakProtected,
+          suggested_action: record.suggestedAction,
+        })),
+        { onConflict: 'id' },
+      )
+      .then(() => undefined);
+  }, [canUseRemote, userId]);
+
+  const submitCheckin = useCallback(async (reason: string) => {
+    const trimmed = reason.trim();
+    if (!pendingCheckinRituals.length || !trimmed) {
+      return;
+    }
+    const created: RitualCheckin[] = [];
+    for (const ritual of pendingCheckinRituals) {
+      const hasPattern = recentPatternForReason(checkins, trimmed);
+      const reply = await generateFloCheckinReply(ritual, trimmed, settings.floTone, hasPattern);
+      created.push({
+        id: `checkin-${ritual.id}-${todayIso()}`,
+        ritualId: ritual.id,
+        date: todayIso(),
+        scheduledWindow: reminderWindowLabel(ritual.reminderTime),
+        userReasonRaw: trimmed,
+        category: reply.category,
+        floMessage: reply.message,
+        streakProtected: reply.protect_streak,
+        suggestedAction: reply.suggested_action,
+        resolvedAt: Date.now(),
+      });
+    }
+    setCheckins((current) => [...created, ...current]);
+    persistCheckinsRemote(created);
+    showToast('Flo check-in saved');
+    impact();
+  }, [checkins, impact, pendingCheckinRituals, persistCheckinsRemote, settings.floTone, showToast]);
+
+  const completeOnboarding = async (
+    dream: DreamId,
+    selectedStarters: Array<{ name: string; icon: string; paletteKey: PaletteKey; goalAmount?: number; goalUnit?: GoalUnit; reminderTime: string }>,
+  ) => {
+    if (!selectedStarters.length) {
+      showToast('Choose at least one starter ritual');
+      return;
+    }
+
+    let nextRituals = selectedStarters.map((starter, index) => starterRitualToRitual(starter, index, `starter-${dream}`));
+
+    if (supabase && canUseRemote && userId) {
+      const { data, error: insertError } = await supabase
+        .from('habits')
+        .insert(selectedStarters.map((starter) => ({
+          user_id: userId,
+          name: starter.name,
+          icon: starter.icon,
+          color: paletteToDbColor(starter.paletteKey),
+          palette_key: starter.paletteKey,
+          goal_amount: starter.goalAmount ?? null,
+          goal_unit: starter.goalUnit ?? null,
+          reminder_time: starter.reminderTime ?? null,
+          frequency: 'daily',
+        })))
+        .select('id,created_at')
+        .order('created_at', { ascending: true });
+
+      if (insertError) {
+        showToast(`Database save failed: ${insertError.message}`);
+      } else if (data?.length) {
+        nextRituals = nextRituals.map((ritual, index) => ({
+          ...ritual,
+          id: data[index]?.id ?? ritual.id,
+          createdAt: data[index]?.created_at ? Date.parse(data[index].created_at) : ritual.createdAt,
+        }));
+      }
+    }
+
+    setOnboardingDream(dream);
+    setRituals(nextRituals);
+    setTotalActiveRituals(nextRituals.length);
+    setBaseDoneFromOtherHabits(0);
+    setSelectedRitualId(nextRituals[0]?.id ?? '');
+    setStateDate(todayIso());
+    setActiveTab('today');
+    setNewRitualId(nextRituals[0]?.id ?? null);
+    showToast('Starter rituals saved');
+    impact();
+    setTimeout(() => setNewRitualId(null), 650);
+  };
+
   const toggleRitual = (ritualId: string, x: number, y: number) => {
     const target = rituals.find((ritual) => ritual.id === ritualId);
     if (!target) {
@@ -3108,6 +3856,9 @@ function FlowApp({
     }
     const nextDoneToday = !target.doneToday;
     const completionHour = nextDoneToday ? nowHour() : null;
+    const pointDelta = nextDoneToday ? 10 + (isCompletionInUsualWindow({ ...target, completedAt: completionHour }) ? 5 : 0) : -(10 + (isCompletionInUsualWindow(target) ? 5 : 0));
+    const hadDoneBeforeToggle = rituals.some((ritual) => ritual.doneToday);
+    const hasDoneAfterToggle = rituals.some((ritual) => ritual.id === ritualId ? nextDoneToday : ritual.doneToday);
     let toastMessage = '';
     let burstPalette: HabitPalette | null = null;
 
@@ -3136,6 +3887,12 @@ function FlowApp({
         return next;
       }),
     );
+    setRhythmPoints((current) => Math.max(0, current + pointDelta));
+    if (!hadDoneBeforeToggle && hasDoneAfterToggle) {
+      setOverallStreak((current) => current + 1);
+    } else if (hadDoneBeforeToggle && !hasDoneAfterToggle && !nextDoneToday) {
+      setOverallStreak((current) => Math.max(0, current - 1));
+    }
 
     impact();
     if (burstPalette) {
@@ -3143,7 +3900,7 @@ function FlowApp({
     }
     showToast(toastMessage);
 
-    if (supabase && userId) {
+    if (supabase && canUseRemote && userId) {
       const logDate = todayIso();
       const write = nextDoneToday
         ? supabase.from('habit_logs').upsert(
@@ -3175,13 +3932,14 @@ function FlowApp({
     const name = input.name.trim();
     const icon = input.icon;
     const paletteKey = input.paletteKey;
+    const why = input.why?.trim() || undefined;
     const goalAmount = typeof input.goalAmount === 'number' && Number.isFinite(input.goalAmount) ? input.goalAmount : undefined;
     const goalUnit = goalAmount && input.goalUnit ? input.goalUnit : undefined;
     const reminderTime = input.reminderTime;
     let id = `ritual-${Date.now()}`;
     let createdAt = Date.now();
 
-    if (supabase && userId) {
+    if (supabase && canUseRemote && userId) {
       const { data, error: insertError } = await supabase
         .from('habits')
         .insert({
@@ -3190,6 +3948,7 @@ function FlowApp({
           icon,
           color: paletteToDbColor(paletteKey),
           palette_key: paletteKey,
+          why: why ?? null,
           goal_amount: goalAmount ?? null,
           goal_unit: goalUnit ?? null,
           reminder_time: reminderTime ?? null,
@@ -3213,6 +3972,7 @@ function FlowApp({
       name,
       icon,
       paletteKey,
+      why,
       goalAmount,
       goalUnit,
       reminderTime,
@@ -3245,11 +4005,12 @@ function FlowApp({
     const name = input.name.trim();
     const icon = input.icon;
     const paletteKey = input.paletteKey;
+    const why = input.why?.trim() || undefined;
     const goalAmount = typeof input.goalAmount === 'number' && Number.isFinite(input.goalAmount) ? input.goalAmount : undefined;
     const goalUnit = goalAmount && input.goalUnit ? input.goalUnit : undefined;
     const reminderTime = input.reminderTime;
 
-    if (supabase && userId) {
+    if (supabase && canUseRemote && userId) {
       const { error: updateError } = await supabase
         .from('habits')
         .update({
@@ -3257,6 +4018,7 @@ function FlowApp({
           icon,
           color: paletteToDbColor(paletteKey),
           palette_key: paletteKey,
+          why: why ?? null,
           goal_amount: goalAmount ?? null,
           goal_unit: goalUnit ?? null,
           reminder_time: reminderTime ?? null,
@@ -3279,6 +4041,7 @@ function FlowApp({
               name,
               icon,
               paletteKey,
+              why,
               goalAmount,
               goalUnit,
               reminderTime,
@@ -3298,7 +4061,7 @@ function FlowApp({
       throw new Error(message);
     }
 
-    if (supabase && userId) {
+    if (supabase && canUseRemote && userId) {
       const { error: deleteError } = await supabase
         .from('habits')
         .update({ is_archived: true })
@@ -3323,13 +4086,13 @@ function FlowApp({
     impact();
   };
 
-  const updateSetting = (key: keyof FlowSettings, value: boolean) => {
+  const updateSetting = <K extends keyof FlowSettings>(key: K, value: FlowSettings[K]) => {
     setSettings((current) => ({ ...current, [key]: value }));
-    showToast(value ? 'Setting enabled' : 'Setting disabled');
+    showToast(key === 'floTone' ? `Flo style: ${String(value)}` : value ? 'Setting enabled' : 'Setting disabled');
     impact();
 
-    if (supabase && userId) {
-      const column = key === 'darkTheme' ? 'dark_theme' : key === 'haptics' ? 'haptics_enabled' : key === 'pushNotifications' ? 'push_enabled' : null;
+    if (supabase && canUseRemote && userId) {
+      const column = key === 'darkTheme' ? 'dark_theme' : key === 'haptics' ? 'haptics_enabled' : key === 'pushNotifications' ? 'push_enabled' : key === 'floTone' ? 'flo_tone' : null;
       if (column) {
         supabase
           .from('profiles')
@@ -3364,6 +4127,26 @@ function FlowApp({
     ? responsiveMaxWidth(width, APP_CONTENT_MAX_WIDTH, appHorizontalPadding)
     : undefined;
 
+  if (!hydrated) {
+    return (
+      <View style={styles.root}>
+        <StatusBar style="dark" />
+        <LinearGradient colors={['#EEF1F4', colors.page]} style={styles.stage}>
+          <View style={styles.loadingRoot} />
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  if (!onboardingDream && rituals.length === 0) {
+    return (
+      <OnboardingDreamFlow
+        reduceMotion={reduceMotion}
+        onComplete={(dream, starters) => completeOnboarding(dream, starters).catch(() => showToast('Unable to save starter rituals'))}
+      />
+    );
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
@@ -3374,7 +4157,7 @@ function FlowApp({
             styles.screenHost,
             {
               paddingTop: Math.max(insets.top, 12),
-              paddingBottom: insets.bottom + 112,
+              paddingBottom: 0,
               maxWidth: contentMaxWidth,
             },
             screenStyle,
@@ -3387,11 +4170,18 @@ function FlowApp({
               totalActiveRituals={totalActiveRituals}
               doneCount={doneCount}
               heroPercent={heroPercent}
+              overallStreak={overallStreak}
+              rhythmPoints={rhythmPoints}
+              graceHearts={graceHearts}
+              pendingCheckinRituals={pendingCheckinRituals}
+              latestCheckins={checkins}
+              weeklyPatternCheckin={weeklyPatternCheckin}
               newRitualId={newRitualId}
               reduceMotion={reduceMotion}
               onToggleRitual={toggleRitual}
               onEditRitual={(ritual) => setEditingRitualId(ritual.id)}
               onOpenProfile={() => setActiveTab('profile')}
+              onSubmitCheckin={submitCheckin}
             />
           ) : null}
           {activeTab === 'progress' ? (
@@ -3461,22 +4251,36 @@ function TodayScreen({
   totalActiveRituals,
   doneCount,
   heroPercent,
+  overallStreak,
+  rhythmPoints,
+  graceHearts,
+  pendingCheckinRituals,
+  latestCheckins,
+  weeklyPatternCheckin,
   newRitualId,
   reduceMotion,
   onToggleRitual,
   onEditRitual,
   onOpenProfile,
+  onSubmitCheckin,
 }: {
   username: string;
   rituals: Ritual[];
   totalActiveRituals: number;
   doneCount: number;
   heroPercent: number;
+  overallStreak: number;
+  rhythmPoints: number;
+  graceHearts: number;
+  pendingCheckinRituals: Ritual[];
+  latestCheckins: RitualCheckin[];
+  weeklyPatternCheckin: RitualCheckin | null;
   newRitualId: string | null;
   reduceMotion: boolean;
   onToggleRitual: (id: string, x: number, y: number) => void;
   onEditRitual: (ritual: Ritual) => void;
   onOpenProfile: () => void;
+  onSubmitCheckin: (reason: string) => void | Promise<void>;
 }) {
   const { width } = useWindowDimensions();
   const now = useMinuteNow();
@@ -3485,7 +4289,7 @@ function TodayScreen({
   const [activeThemeKey, setActiveThemeKey] = useState<HeroThemeKey>(() => getHeroThemeKey());
   const [activeMetricId, setActiveMetricId] = useState<HeaderMetric['id'] | null>(null);
   const useTabletGrid = width >= TABLET_MIN_WIDTH;
-  const headerMetrics = useMemo(() => derivedHeaderMetrics(rituals), [rituals]);
+  const headerMetrics = useMemo(() => derivedHeaderMetrics(overallStreak, rhythmPoints, graceHearts), [graceHearts, overallStreak, rhythmPoints]);
   const statusRows = useMemo(
     () =>
       rituals.map((ritual) => ({
@@ -3494,7 +4298,7 @@ function TodayScreen({
         streakDays: ritual.streakDays,
         done: ritual.doneToday,
         completedAt: ritual.completedAt ?? null,
-        pct: ritual.doneToday ? '100%' : `${Math.max(14, percentFromWeekly(ritual.weekly))}%`,
+        pct: ritual.doneToday ? '100%' : `${Math.max(14, percentFromWeekly(ritual.heat.slice(-7)))}%`,
         palette: habitPalette[ritual.paletteKey],
       })),
     [rituals],
@@ -3575,6 +4379,8 @@ function TodayScreen({
         themeOverride={themeOverride}
         onSelect={selectThemeOverride}
       />
+      <FloCheckinCard rituals={pendingCheckinRituals} latestCheckins={latestCheckins} onSubmit={onSubmitCheckin} />
+      {weeklyPatternCheckin ? <FloPatternRecap checkin={weeklyPatternCheckin} rituals={rituals} /> : null}
       <TodayRhythmTimeline rituals={rituals} now={now} />
       {false ? (
         <GradientCard style={styles.hero}>
@@ -3684,9 +4490,11 @@ function AdaptiveTodayHero({
     opacity: fade.value,
   }));
   const isNight = currentTheme.key === 'night';
+  const complete = totalActiveRituals > 0 && heroPercent >= 100;
+  const accent = currentTheme.accent;
 
   return (
-    <View style={styles.heroAdaptive}>
+    <View style={[styles.heroAdaptive, complete && { shadowColor: accent, shadowOpacity: 0.24, shadowRadius: 28, elevation: 12 }]}>
       <StatusBar style={isNight ? 'light' : 'dark'} />
       <LinearGradient colors={previousTheme.backdrop} style={StyleSheet.absoluteFill} />
       <Reanimated.View style={[StyleSheet.absoluteFill, fadeStyle]}>
@@ -3701,29 +4509,36 @@ function AdaptiveTodayHero({
         <Text style={[styles.heroHead, { color: currentTheme.inkOnHero }]}>
           Today's rituals · <Text style={[styles.heroHeadStrong, { color: currentTheme.inkOnHero }]}>{doneCount}/{totalActiveRituals}</Text> done
         </Text>
-        <LiquidRing
-          percent={heroPercent}
-          size={220}
-          variant="hero"
-          palette={wavePalette}
-          reduceMotion={reduceMotion}
-          accent={currentTheme.accent}
-          textColor={currentTheme.inkOnHero}
-          subTextColor={isNight ? 'rgba(228,226,255,0.72)' : colors.inkSoft}
-          trackColor={isNight ? 'rgba(228,226,255,0.18)' : 'rgba(120,140,180,0.18)'}
-        />
+        <View style={complete ? [styles.heroCompleteOrb, { shadowColor: accent }] : null}>
+          <LiquidRing
+            percent={heroPercent}
+            size={220}
+            variant="hero"
+            palette={wavePalette}
+            reduceMotion={reduceMotion}
+            accent={accent}
+            textColor={currentTheme.inkOnHero}
+            subTextColor={isNight ? 'rgba(228,226,255,0.72)' : colors.inkSoft}
+            trackColor={isNight ? 'rgba(228,226,255,0.18)' : 'rgba(120,140,180,0.18)'}
+          />
+        </View>
         <View
           style={[
             styles.goalPill,
             {
               backgroundColor: isNight ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
-              borderColor: isNight ? 'rgba(255,255,255,0.18)' : 'rgba(120,140,180,0.14)',
+              borderColor: complete ? `${accent}55` : isNight ? 'rgba(255,255,255,0.18)' : 'rgba(120,140,180,0.14)',
             },
           ]}
         >
-          <DropletIcon color={currentTheme.accent} />
-          <Text style={[styles.goalPillText, { color: currentTheme.inkOnHero }]}>{heroPercent}% of daily rituals</Text>
+          <DropletIcon color={accent} />
+          <Text style={[styles.goalPillText, { color: currentTheme.inkOnHero }]}>{complete ? 'All done for today ✨' : `${heroPercent}% of daily rituals`}</Text>
         </View>
+        {complete ? (
+          <View style={[styles.heroCompleteBanner, { backgroundColor: `${accent}22`, borderColor: `${accent}44` }]}>
+            <Text style={[styles.heroCompleteText, { color: currentTheme.inkOnHero }]}>All rituals complete! Nice consistency today - see you tomorrow.</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -3854,9 +4669,126 @@ function NightStar({
   );
 }
 
+function FloCheckinCard({
+  rituals,
+  latestCheckins,
+  onSubmit,
+}: {
+  rituals: Ritual[];
+  latestCheckins: RitualCheckin[];
+  onSubmit: (reason: string) => void | Promise<void>;
+}) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customReason, setCustomReason] = useState('');
+  const latestToday = latestCheckins.find((checkin) => checkin.date === todayIso());
+  const quickReplies = ['Something came up', 'Chose something else', "Just didn't get to it"];
+
+  if (!rituals.length && !latestToday) {
+    return null;
+  }
+
+  const title = rituals.length > 1
+    ? `${rituals.length} rituals need a check-in`
+    : rituals[0]?.name ?? 'Flo check-in';
+  const subtitle = rituals.length
+    ? rituals.map((ritual) => `${ritual.icon} ${ritual.name}`).join('  ')
+    : 'Thanks for naming what happened today.';
+
+  const submitCustom = async () => {
+    const trimmed = customReason.trim();
+    if (!trimmed) {
+      return;
+    }
+    await onSubmit(trimmed);
+    setCustomReason('');
+    setCustomOpen(false);
+  };
+
+  return (
+    <View style={styles.floCheckinCard}>
+      <View style={styles.floCheckinTop}>
+        <View style={styles.floCheckinIcon}>
+          <Bot size={18} color={colors.blue1} strokeWidth={2.4} />
+        </View>
+        <View style={styles.floCheckinCopy}>
+          <Text style={styles.floCheckinTitle}>{title}</Text>
+          <Text numberOfLines={2} style={styles.floCheckinSub}>{subtitle}</Text>
+        </View>
+      </View>
+
+      {rituals.length ? (
+        <>
+          <Text style={styles.floQuestion}>What came up?</Text>
+          <View style={styles.floChipRow}>
+            {quickReplies.map((reply) => (
+              <Pressable key={reply} accessibilityRole="button" onPress={() => onSubmit(reply)} style={styles.floReplyChip}>
+                <Text style={styles.floReplyText}>{reply}</Text>
+              </Pressable>
+            ))}
+            <Pressable accessibilityRole="button" onPress={() => setCustomOpen((open) => !open)} style={styles.floReplyChip}>
+              <Text style={styles.floReplyText}>Type it out</Text>
+            </Pressable>
+          </View>
+          {customOpen ? (
+            <View style={styles.floInputRow}>
+              <TextInput
+                value={customReason}
+                onChangeText={setCustomReason}
+                placeholder="Tell Flo what happened"
+                placeholderTextColor={colors.inkFaint}
+                style={styles.floInput}
+              />
+              <Pressable accessibilityRole="button" onPress={submitCustom} style={styles.floSendButton}>
+                <Send size={15} color="#FFFFFF" strokeWidth={2.5} />
+              </Pressable>
+            </View>
+          ) : null}
+        </>
+      ) : null}
+
+      {latestToday ? (
+        <View style={styles.floInlineReply}>
+          <Text style={styles.floInlineLabel}>Flo</Text>
+          <Text style={styles.floInlineText}>{latestToday.floMessage}</Text>
+          {latestToday.suggestedAction ? (
+            <Pressable accessibilityRole="button" style={styles.floActionChip}>
+              <Text style={styles.floActionText}>{latestToday.suggestedAction}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FloPatternRecap({ checkin, rituals }: { checkin: RitualCheckin; rituals: Ritual[] }) {
+  const ritual = rituals.find((item) => item.id === checkin.ritualId);
+  return (
+    <View style={styles.floPatternCard}>
+      <View style={styles.floPatternIcon}>
+        <Sparkles size={16} color={habitPalette.journal.ink} strokeWidth={2.4} />
+      </View>
+      <View style={styles.floPatternCopy}>
+        <Text style={styles.floPatternTitle}>Weekly pattern</Text>
+        <Text style={styles.floPatternText}>
+          {ritual?.name ?? 'A ritual'} has met the same blocker a few times this week. Flo suggests: {checkin.suggestedAction ?? 'make the next version smaller.'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function TodayRhythmTimeline({ rituals, now }: { rituals: Ritual[]; now: Date }) {
   const [tooltipId, setTooltipId] = useState<string | null>(null);
-  const completed = rituals.filter((ritual) => ritual.doneToday && typeof ritual.completedAt === 'number');
+  const completed = useMemo(
+    () =>
+      rituals
+        .filter((ritual) => ritual.doneToday && typeof ritual.completedAt === 'number')
+        .map((ritual) => ({ ritual, pct: hourToPercent(ritual.completedAt ?? 0) }))
+        .sort((a, b) => a.pct - b.pct),
+    [rituals],
+  );
+  const clusters = useMemo(() => groupIntoClusters(completed), [completed]);
   const nowPct = hourToPercent(nowHour(now));
 
   useEffect(() => {
@@ -3881,14 +4813,21 @@ function TodayRhythmTimeline({ rituals, now }: { rituals: Ritual[]; now: Date })
           <LinearGradient colors={['#DCE1F0', '#C7CEE6']} style={[styles.rhythmSegment, { flex: 3 }]} />
         </View>
         <View pointerEvents="none" style={[styles.rhythmNowTick, { left: `${nowPct}%` }]} />
-        {completed.map((ritual) => (
-          <TimelineMarker
-            key={`${ritual.id}-${ritual.completedAt}`}
-            ritual={ritual}
-            visibleTooltip={tooltipId === ritual.id}
-            onPress={() => setTooltipId(ritual.id)}
-          />
-        ))}
+        {clusters.map((cluster, clusterIndex) => {
+          const clusterLeft = cluster.items.reduce((sum, entry) => sum + entry.pct, 0) / cluster.items.length;
+          return cluster.items.map((entry, stackIndex) => (
+            <TimelineMarker
+              key={`${entry.ritual.id}-${entry.ritual.completedAt}`}
+              ritual={entry.ritual}
+              leftPct={clusterLeft}
+              stackIndex={stackIndex}
+              clusterSize={cluster.items.length}
+              showCount={cluster.items.length > 1 && stackIndex === cluster.items.length - 1}
+              visibleTooltip={tooltipId === entry.ritual.id}
+              onPress={() => setTooltipId(entry.ritual.id)}
+            />
+          ));
+        })}
       </View>
       <View style={styles.rhythmAxis}>
         {['6a', '12p', '5p', '9p', '12a'].map((label) => (
@@ -3901,17 +4840,26 @@ function TodayRhythmTimeline({ rituals, now }: { rituals: Ritual[]; now: Date })
 
 function TimelineMarker({
   ritual,
+  leftPct,
+  stackIndex,
+  clusterSize,
+  showCount,
   visibleTooltip,
   onPress,
 }: {
   ritual: Ritual;
+  leftPct: number;
+  stackIndex: number;
+  clusterSize: number;
+  showCount: boolean;
   visibleTooltip: boolean;
   onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(0)).current;
   const tooltip = useRef(new Animated.Value(0)).current;
   const palette = habitPalette[ritual.paletteKey];
-  const left = hourToPercent(ritual.completedAt ?? 0);
+  const markerTop = 41 - stackIndex * 28;
+  const stemHeight = stackIndex * 28 + 16;
 
   useEffect(() => {
     Animated.spring(scale, {
@@ -3932,10 +4880,16 @@ function TimelineMarker({
   }, [tooltip, visibleTooltip]);
 
   return (
-    <Animated.View style={[styles.timelineMarkerWrap, { left: `${left}%`, transform: [{ translateX: -16 }, { scale }] }]}>
+    <Animated.View style={[styles.timelineMarkerWrap, { left: `${leftPct}%`, top: markerTop, zIndex: 5 + stackIndex, transform: [{ translateX: -16 }, { scale }] }]}>
+      {clusterSize > 1 && stackIndex > 0 ? <View style={[styles.timelineStem, { height: stemHeight, backgroundColor: palette.a }]} /> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={`${ritual.name} completed at ${fmtHour(ritual.completedAt ?? 0)}`} onPress={onPress} style={[styles.timelineMarker, { shadowColor: palette.a }]}>
         <Text style={styles.timelineMarkerIcon}>{ritual.icon}</Text>
       </Pressable>
+      {showCount ? (
+        <View style={[styles.timelineCountBadge, { backgroundColor: palette.a }]}>
+          <Text style={styles.timelineCountText}>{clusterSize}</Text>
+        </View>
+      ) : null}
       <Animated.View pointerEvents="none" style={[styles.timelineTooltip, { opacity: tooltip, transform: [{ translateY: tooltip.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }] }]}>
         <Text numberOfLines={1} style={styles.timelineTooltipText}>{ritual.name} · {fmtHour(ritual.completedAt ?? 0)}</Text>
       </Animated.View>
@@ -4185,7 +5139,10 @@ function ProgressScreen({
   }
 
   const palette = habitPalette[selectedRitual.paletteKey];
-  const weekPercent = percentFromWeekly(selectedRitual.weekly);
+  const selectedWeekHistory = selectedRitual.heat.slice(-7);
+  const selectedCurrentStreak = currentStreakFromHeat(selectedRitual.heat);
+  const selectedBestStreak = longestStreakFromHeat(selectedRitual.heat);
+  const weekPercent = percentFromWeekly(selectedWeekHistory);
   const monthPercent = selectedRitual.heat.length
     ? Math.round((selectedRitual.heat.reduce((sum, value) => sum + (value ? 1 : 0), 0) / selectedRitual.heat.length) * 100)
     : 0;
@@ -4213,11 +5170,11 @@ function ProgressScreen({
 
       <View style={styles.statGrid}>
         <GradientCard style={styles.statCard}>
-          <CountUpText value={selectedRitual.streakDays} trigger={selectedRitual.id} style={styles.statNum} />
+          <CountUpText value={selectedCurrentStreak} trigger={selectedRitual.id} style={styles.statNum} />
           <Text style={styles.statLabel}>Current streak</Text>
         </GradientCard>
         <GradientCard style={styles.statCard}>
-          <CountUpText value={selectedRitual.bestStreakDays} trigger={selectedRitual.id} style={styles.statNum} />
+          <CountUpText value={selectedBestStreak} trigger={selectedRitual.id} style={styles.statNum} />
           <Text style={styles.statLabel}>Best streak</Text>
         </GradientCard>
       </View>
@@ -4247,7 +5204,7 @@ function ProgressScreen({
         <Text style={styles.weekSub}>{range === 'week' ? "This week's completions" : 'Last 30 days by date'}</Text>
         {range === 'week' ? (
           <View style={styles.bars}>
-            {selectedRitual.weekly.map((done, index) => (
+            {selectedWeekHistory.map((done, index) => (
               <BarColumn
                 key={`${selectedRitual.id}-${index}`}
                 day={weekLabels[index]}
@@ -4307,7 +5264,7 @@ function ProgressScreen({
               streakDays={ritual.streakDays}
               done={ritual.doneToday}
               completedAt={ritual.completedAt ?? null}
-              pct={ritual.doneToday ? '100%' : `${Math.max(14, percentFromWeekly(ritual.weekly))}%`}
+              pct={ritual.doneToday ? '100%' : `${Math.max(14, percentFromWeekly(ritual.heat.slice(-7)))}%`}
               palette={habitPalette[ritual.paletteKey]}
             />
           </Pressable>
@@ -4692,7 +5649,7 @@ function ProfileScreen({
   reduceMotion: boolean;
   profileIncomplete: boolean;
   onOpenProfileSetup: () => void;
-  onSettingChange: (key: keyof FlowSettings, value: boolean) => void;
+  onSettingChange: <K extends keyof FlowSettings>(key: K, value: FlowSettings[K]) => void;
   onLogout: () => void;
 }) {
   const best = rituals.reduce((max, ritual) => Math.max(max, ritual.bestStreakDays, ritual.streakDays), 0);
@@ -4755,6 +5712,7 @@ function ProfileScreen({
         <Text style={styles.settingsLabel}>Appearance</Text>
         <ToggleRow icon={Moon} label="Dark theme" value={settings.darkTheme} onChange={(value) => onSettingChange('darkTheme', value)} />
         <ToggleRow icon={Zap} label="Haptics" value={settings.haptics} onChange={(value) => onSettingChange('haptics', value)} />
+        <ToneRow value={settings.floTone} onChange={(value) => onSettingChange('floTone', value)} />
       </View>
 
       <View style={styles.settingsCard}>
@@ -4795,7 +5753,7 @@ function LiquidRing({
 }) {
   const stroke = variant === 'hero' ? 10 : 0;
   const ringId = useRef(`ring${Math.random().toString(36).slice(2)}`).current;
-  const visualPercent = clamp(percent, 4, 96);
+  const visualPercent = percent >= 100 ? 100 : clamp(percent, 4, 96);
   const liquidInset = variant === 'hero' ? 22 : 0;
   const liquidSize = size - liquidInset * 2;
   const radius = size / 2 - stroke * 2;
@@ -5232,6 +6190,40 @@ function ToggleRow({
   );
 }
 
+function ToneRow({ value, onChange }: { value: FloTone; onChange: (value: FloTone) => void }) {
+  const options: Array<{ value: FloTone; label: string }> = [
+    { value: 'gentle', label: 'Gentle' },
+    { value: 'direct', label: 'Direct' },
+    { value: 'coach', label: 'Coach' },
+  ];
+  return (
+    <View style={styles.settingRowTall}>
+      <View style={styles.settingRowTop}>
+        <View style={styles.settingIcon}>
+          <Bot size={17} color={colors.ink} strokeWidth={2.3} />
+        </View>
+        <Text style={styles.settingName}>Flo's check-in style</Text>
+      </View>
+      <View style={styles.toneSegment}>
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => onChange(option.value)}
+              style={[styles.toneSegmentButton, selected && styles.toneSegmentButtonActive]}
+            >
+              <Text style={[styles.toneSegmentText, selected && styles.toneSegmentTextActive]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function InfoRow({
   icon: Icon,
   label,
@@ -5501,20 +6493,167 @@ function BottomNav({
   onAdd: () => void;
 }) {
   const { width } = useWindowDimensions();
+  const reduceMotion = useReducedMotion();
+  const activeIndex = activeTab === 'today' ? 0 : activeTab === 'progress' ? 1 : activeTab === 'insights' ? 3 : 4;
+  const mounted = useRef(new Animated.Value(0)).current;
+  const indicator = useRef(new Animated.Value(activeIndex)).current;
+  const rimSpin = useRef(new Animated.Value(0)).current;
+  const sweep = useRef(new Animated.Value(0)).current;
+  const itemWidth = width < 380 ? 44 : 48;
+  const gap = width < 380 ? 14 : 18;
+  const padX = width < 380 ? 18 : 22;
+  const step = itemWidth + gap;
+  const navWidth = itemWidth * 5 + gap * 4 + padX * 2;
   const navSideOffset = width >= TABLET_MIN_WIDTH
     ? Math.max(24, (width - NAV_TABLET_MAX_WIDTH) / 2)
     : 14;
+  const navBottom = Platform.OS === 'android' ? 24 : Math.max(20, bottomInset + 8);
+  const clampedNavWidth = Math.min(navWidth, width - navSideOffset * 2);
+  const rimRotation = rimSpin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+  const sweepTranslate = sweep.interpolate({
+    inputRange: [0, 0.15, 0.5, 0.85, 1],
+    outputRange: [-clampedNavWidth * 0.52, -clampedNavWidth * 0.18, clampedNavWidth * 0.38, clampedNavWidth * 0.86, clampedNavWidth * 1.08],
+  });
+  const sweepOpacity = sweep.interpolate({
+    inputRange: [0, 0.15, 0.5, 0.85, 1],
+    outputRange: [0, 0.5, 0.5, 0, 0],
+  });
+
+  useEffect(() => {
+    Animated.timing(mounted, {
+      toValue: 1,
+      duration: reduceMotion ? 1 : 520,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [mounted, reduceMotion]);
+
+  useEffect(() => {
+    Animated.spring(indicator, {
+      toValue: activeIndex,
+      speed: reduceMotion ? 100 : 18,
+      bounciness: reduceMotion ? 0 : 8,
+      useNativeDriver: true,
+    }).start();
+  }, [activeIndex, indicator, reduceMotion]);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      return undefined;
+    }
+    const rimLoop = Animated.loop(
+      Animated.timing(rimSpin, {
+        toValue: 1,
+        duration: 11000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    const sweepLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sweep, {
+          toValue: 1,
+          duration: 6500,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sweep, {
+          toValue: 0,
+          duration: 1,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    rimLoop.start();
+    sweepLoop.start();
+    return () => {
+      rimLoop.stop();
+      sweepLoop.stop();
+    };
+  }, [reduceMotion, rimSpin, sweep]);
 
   return (
-    <View style={[styles.navPill, { bottom: bottomInset + NAV_BOTTOM_OFFSET, left: navSideOffset, right: navSideOffset }]}>
-      <NavItem tab="today" label="Today" icon={Home} activeTab={activeTab} onChange={onChange} />
-      <NavItem tab="progress" label="Progress" icon={BarChart3} activeTab={activeTab} onChange={onChange} />
-      <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={styles.navCenter}>
-        <Plus size={28} color="#FFFFFF" strokeWidth={2.7} />
-      </Pressable>
-      <NavItem tab="insights" label="Insights" icon={Sun} activeTab={activeTab} onChange={onChange} />
-      <NavItem tab="profile" label="Profile" icon={User} activeTab={activeTab} onChange={onChange} />
-    </View>
+    <Animated.View
+      style={[
+        styles.glassNavShell,
+        {
+          bottom: navBottom,
+          left: navSideOffset,
+          right: navSideOffset,
+          opacity: mounted,
+          transform: [{ translateY: mounted.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+        },
+      ]}
+    >
+      <View style={[styles.glassNavRim, { width: clampedNavWidth }]}>
+        <Animated.View pointerEvents="none" style={[styles.glassNavRimSpin, { transform: [{ rotate: rimRotation }] }]}>
+          <LinearGradient
+            colors={[
+              'rgba(255,255,255,0.95)',
+              'rgba(255,255,255,0.26)',
+              'rgba(210,218,255,0.98)',
+              'rgba(255,255,255,0.22)',
+              'rgba(255,255,255,0.95)',
+            ]}
+            locations={[0, 0.24, 0.55, 0.76, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.glassNavRimSpinGradient}
+          />
+        </Animated.View>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.06)']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={[styles.glassNavPill, { paddingHorizontal: padX }]}
+        >
+          <View pointerEvents="none" style={styles.glassNavSheen} />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.glassNavSweep,
+              {
+                width: clampedNavWidth * 0.4,
+                opacity: sweepOpacity,
+                transform: [{ translateX: sweepTranslate }, { skewX: '-18deg' }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['transparent', 'rgba(255,255,255,0.35)', 'transparent']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.glassNavSweepGradient}
+            />
+          </Animated.View>
+          <View style={[styles.glassNavRow, { gap }]}>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.glassNavIndicator,
+                {
+                  width: itemWidth,
+                  transform: [{ translateX: indicator.interpolate({ inputRange: [0, 4], outputRange: [0, step * 4] }) }],
+                },
+              ]}
+            />
+            <NavItem tab="today" label="Home" icon={Home} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
+            <NavItem tab="progress" label="Progress" icon={Clock3} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={[styles.glassNavItem, { width: itemWidth }]}>
+              <LinearGradient colors={['#9D8BF5', '#6653D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.glassNavAdd}>
+                <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
+              </LinearGradient>
+              <Text style={styles.glassNavLabel}>Add</Text>
+            </Pressable>
+            <NavItem tab="insights" label="Insights" icon={PieChart} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
+            <NavItem tab="profile" label="Profile" icon={User} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
+          </View>
+        </LinearGradient>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -5522,20 +6661,27 @@ function NavItem({
   tab,
   label,
   icon: Icon,
+  itemWidth,
   activeTab,
   onChange,
 }: {
   tab: TabKey;
   label: string;
   icon: IconComponent;
+  itemWidth: number;
   activeTab: TabKey;
   onChange: (tab: TabKey) => void;
 }) {
   const active = tab === activeTab;
   return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => onChange(tab)} style={styles.navItem}>
-      <Icon size={20} color={active ? colors.blue1 : colors.inkFaint} strokeWidth={2.5} />
-      <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onPress={() => onChange(tab)}
+      style={[styles.glassNavItem, { width: itemWidth }, active && styles.glassNavItemActive]}
+    >
+      <Icon size={20} color={active ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} strokeWidth={active ? 2.35 : 1.9} />
+      <Text style={[styles.glassNavLabel, active && styles.glassNavLabelActive]}>{label}</Text>
     </Pressable>
   );
 }
@@ -5601,6 +6747,7 @@ function AddRitualSheet({
   const isTablet = width >= TABLET_MIN_WIDTH;
   const [mounted, setMounted] = useState(open);
   const [name, setName] = useState('');
+  const [why, setWhy] = useState('');
   const [selectedIconKey, setSelectedIconKey] = useState<PaletteKey>('water');
   const [trackAmount, setTrackAmount] = useState(false);
   const [amount, setAmount] = useState('');
@@ -5628,6 +6775,7 @@ function AddRitualSheet({
     name: previewName,
     icon: selectedIcon.icon,
     paletteKey: selectedIcon.key,
+    why: why.trim() || undefined,
     goalAmount: previewGoalAmount,
     goalUnit: previewGoalAmount ? goalUnit : undefined,
     reminderTime,
@@ -5645,6 +6793,7 @@ function AddRitualSheet({
     }
     const hasGoal = typeof editingRitual?.goalAmount === 'number' && Number.isFinite(editingRitual.goalAmount);
     setName(editingRitual?.name ?? '');
+    setWhy(editingRitual?.why ?? '');
     setSelectedIconKey(editingRitual?.paletteKey ?? 'water');
     setTrackAmount(hasGoal);
     setAmount(hasGoal ? String(editingRitual?.goalAmount) : '');
@@ -5700,6 +6849,7 @@ function AddRitualSheet({
       name: trimmed,
       icon: selectedIcon.icon,
       paletteKey: selectedIcon.key,
+      why: why.trim() || undefined,
       goalAmount: trackAmount ? parsedAmount : undefined,
       goalUnit: trackAmount ? goalUnit : undefined,
       reminderTime,
@@ -5716,6 +6866,7 @@ function AddRitualSheet({
     }
 
     setName('');
+    setWhy('');
     setSelectedIconKey('water');
     setTrackAmount(false);
     setAmount('');
@@ -5745,6 +6896,7 @@ function AddRitualSheet({
 
   const applyTemplate = (template: typeof ritualTemplates[number]) => {
     setName(template.name);
+    setWhy('');
     setSelectedIconKey(template.iconKey);
     setTrackAmount(true);
     setAmount(String(template.goalAmount));
@@ -5817,6 +6969,19 @@ function AddRitualSheet({
             placeholderTextColor={hasError ? colors.danger : colors.inkFaint}
             style={[styles.fieldInput, hasError && styles.fieldInputError]}
             returnKeyType="next"
+          />
+          <Text style={styles.fieldLabel}>Why this ritual?</Text>
+          <TextInput
+            value={why}
+            onChangeText={(value) => {
+              setWhy(value.slice(0, 140));
+              setConfirmDelete(false);
+            }}
+            placeholder="helps me disconnect before bed"
+            placeholderTextColor={colors.inkFaint}
+            style={[styles.fieldInput, styles.fieldInputMultiline]}
+            multiline
+            returnKeyType="done"
           />
           <Text style={styles.fieldLabel}>Icon</Text>
           <View style={styles.iconLibraryGrid}>
@@ -6242,7 +7407,7 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   authHeroCompact: {
-    minHeight: 210,
+    minHeight: 188,
     marginTop: 0,
   },
   authWaveHost: {
@@ -6254,8 +7419,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   authWaveHostCompact: {
-    top: 76,
-    height: 96,
+    top: 112,
+    height: 78,
   },
   authWaveSvgWrap: {
     position: 'absolute',
@@ -6267,6 +7432,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 28,
     paddingTop: 28,
+  },
+  authHeroContentCompact: {
+    justifyContent: 'flex-start',
+    paddingTop: 26,
   },
   authHeroContentSplit: {
     flex: 1,
@@ -6329,6 +7498,9 @@ const styles = StyleSheet.create({
   authCardWrap: {
     width: '100%',
     marginTop: -46,
+  },
+  authCardWrapCreate: {
+    marginTop: 12,
   },
   authCardWrapSplit: {
     flex: 0.95,
@@ -6600,6 +7772,166 @@ const styles = StyleSheet.create({
     fontFamily: fontBodyExtra,
     fontSize: 12.5,
     color: colors.blue1,
+  },
+  onboardingScroll: {
+    flexGrow: 1,
+    alignSelf: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  onboardingProgress: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 22,
+  },
+  onboardingProgressDot: {
+    width: 32,
+    height: 6,
+    borderRadius: 999,
+  },
+  onboardingProgressDotActive: {
+    backgroundColor: colors.blue1,
+  },
+  onboardingProgressDotEmpty: {
+    backgroundColor: 'rgba(120,140,180,0.18)',
+  },
+  onboardingHeader: {
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 20,
+  },
+  onboardingTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 26,
+    lineHeight: 32,
+    color: colors.ink,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  onboardingSubtitle: {
+    fontFamily: fontBodySemi,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginTop: 7,
+    maxWidth: 360,
+  },
+  dreamGrid: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  dreamCard: {
+    minHeight: 74,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(120,140,180,0.14)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 13,
+    shadowColor: '#4060A0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  dreamIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dreamIconText: {
+    fontSize: 21,
+  },
+  dreamCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  dreamTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 15.5,
+    color: colors.ink,
+  },
+  dreamDescription: {
+    fontFamily: fontBodySemi,
+    fontSize: 12,
+    color: colors.inkSoft,
+    marginTop: 3,
+  },
+  dreamSelected: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.blue1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingNote: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(79,168,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.2)',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 13,
+    marginBottom: 16,
+  },
+  onboardingNoteText: {
+    flex: 1,
+    fontFamily: fontBodySemi,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.ink,
+  },
+  starterList: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  starterRow: {
+    minHeight: 70,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.14)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    ...shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  starterIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  starterIconText: {
+    fontSize: 19,
+  },
+  starterCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  starterName: {
+    fontFamily: fontSerifSemi,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  starterMeta: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    marginTop: 3,
   },
   profileSetupScroll: {
     flexGrow: 1,
@@ -7126,7 +8458,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 164,
+    paddingBottom: NAV_HEIGHT + 30,
   },
   topRow: {
     minHeight: 52,
@@ -7218,10 +8550,204 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
     ...shadow,
   },
+  heroAdaptiveComplete: {
+    shadowColor: colors.green,
+    shadowOpacity: 0.28,
+    shadowRadius: 28,
+    elevation: 12,
+  },
   heroContent: {
     position: 'relative',
     zIndex: 1,
     alignItems: 'center',
+  },
+  heroCompleteOrb: {
+    transform: [{ scale: 1.04 }],
+    shadowColor: colors.green,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+  },
+  heroCompleteBanner: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(51,203,161,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(51,203,161,0.28)',
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+  },
+  heroCompleteText: {
+    fontFamily: fontBodyBold,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  floCheckinCard: {
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.18)',
+    padding: 14,
+    marginTop: 14,
+    marginBottom: 14,
+    ...shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  floCheckinTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  floCheckinIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 15,
+    backgroundColor: 'rgba(79,168,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floCheckinCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  floCheckinTitle: {
+    fontFamily: fontSerifSemi,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  floCheckinSub: {
+    fontFamily: fontBody,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    marginTop: 2,
+  },
+  floQuestion: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12,
+    color: colors.ink,
+    marginTop: 14,
+    marginBottom: 9,
+  },
+  floChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  floReplyChip: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: '#F3F6FB',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  floReplyText: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.ink,
+  },
+  floInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  floInput: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.18)',
+    backgroundColor: '#F8FAFD',
+    paddingHorizontal: 12,
+    fontFamily: fontBodyRegular,
+    fontSize: 13,
+    color: colors.ink,
+  },
+  floSendButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.blue1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floInlineReply: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(79,168,255,0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.16)',
+    padding: 12,
+    marginTop: 12,
+  },
+  floInlineLabel: {
+    fontFamily: fontBodyExtra,
+    fontSize: 11,
+    color: colors.blue1,
+    marginBottom: 4,
+  },
+  floInlineText: {
+    fontFamily: fontBody,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.ink,
+  },
+  floActionChip: {
+    alignSelf: 'flex-start',
+    minHeight: 32,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(79,168,255,0.22)',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 9,
+  },
+  floActionText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 11.5,
+    color: colors.blue1,
+  },
+  floPatternCard: {
+    borderRadius: 22,
+    backgroundColor: '#FFF8EA',
+    borderWidth: 1,
+    borderColor: 'rgba(240,163,50,0.22)',
+    flexDirection: 'row',
+    gap: 11,
+    padding: 13,
+    marginBottom: 14,
+  },
+  floPatternIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: 'rgba(240,163,50,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floPatternCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  floPatternTitle: {
+    fontFamily: fontBodyExtra,
+    fontSize: 12.5,
+    color: colors.ink,
+  },
+  floPatternText: {
+    fontFamily: fontBody,
+    fontSize: 11.8,
+    lineHeight: 17,
+    color: colors.inkSoft,
+    marginTop: 3,
   },
   themeLabelRow: {
     flexDirection: 'row',
@@ -7488,7 +9014,7 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
   },
   rhythmTrackWrap: {
-    height: 64,
+    height: 112,
     justifyContent: 'center',
   },
   rhythmTrack: {
@@ -7510,10 +9036,16 @@ const styles = StyleSheet.create({
   },
   timelineMarkerWrap: {
     position: 'absolute',
-    top: 15,
     width: 32,
     height: 44,
     alignItems: 'center',
+  },
+  timelineStem: {
+    position: 'absolute',
+    top: 22,
+    width: 2,
+    borderRadius: 2,
+    opacity: 0.45,
   },
   timelineMarker: {
     width: 30,
@@ -7531,6 +9063,23 @@ const styles = StyleSheet.create({
   },
   timelineMarkerIcon: {
     fontSize: 15,
+  },
+  timelineCountBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -7,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  timelineCountText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 9,
+    color: '#FFFFFF',
   },
   timelineTooltip: {
     position: 'absolute',
@@ -8195,6 +9744,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
+  settingRowTall: {
+    minHeight: 88,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  settingRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   settingIcon: {
     width: 32,
     height: 32,
@@ -8213,6 +9775,38 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 11.5,
     color: colors.inkSoft,
+  },
+  toneSegment: {
+    flexDirection: 'row',
+    gap: 6,
+    borderRadius: 15,
+    backgroundColor: '#F3F6FB',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,180,0.16)',
+    padding: 4,
+  },
+  toneSegmentButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toneSegmentButtonActive: {
+    backgroundColor: colors.blue1,
+    shadowColor: colors.blue1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  toneSegmentText: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+  },
+  toneSegmentTextActive: {
+    color: '#FFFFFF',
   },
   toggle: {
     width: 44,
@@ -8306,6 +9900,109 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     ...shadow,
     zIndex: 40,
+  },
+  glassNavShell: {
+    position: 'absolute',
+    alignItems: 'center',
+    zIndex: 40,
+    elevation: 18,
+  },
+  glassNavRim: {
+    borderRadius: 999,
+    padding: 1.5,
+    overflow: 'hidden',
+    shadowColor: '#433C83',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.28,
+    shadowRadius: 40,
+    elevation: 18,
+  },
+  glassNavRimSpin: {
+    position: 'absolute',
+    left: '-60%',
+    right: '-60%',
+    top: '-120%',
+    bottom: '-120%',
+  },
+  glassNavRimSpinGradient: {
+    flex: 1,
+  },
+  glassNavPill: {
+    minHeight: 68,
+    borderRadius: 999,
+    position: 'relative',
+    backgroundColor: 'rgba(88,80,144,0.84)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  glassNavSheen: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    top: 0,
+    height: '50%',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    opacity: 0.4,
+  },
+  glassNavSweep: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+  },
+  glassNavSweepGradient: {
+    flex: 1,
+  },
+  glassNavRow: {
+    position: 'relative',
+    flexDirection: 'row',
+  },
+  glassNavIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.24)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  glassNavItem: {
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  glassNavItemActive: {
+    transform: [{ translateY: -2 }, { scale: 1.06 }],
+  },
+  glassNavAdd: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    shadowColor: '#6653D8',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.55,
+    shadowRadius: 10,
+  },
+  glassNavLabel: {
+    fontFamily: fontBodyRegular,
+    fontSize: 10.5,
+    lineHeight: 11,
+    color: 'rgba(255,255,255,0.68)',
+  },
+  glassNavLabelActive: {
+    fontFamily: fontBodyBold,
+    color: '#FFFFFF',
   },
   navItem: {
     flex: 1,
@@ -8438,6 +10135,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
     marginBottom: 16,
+  },
+  fieldInputMultiline: {
+    minHeight: 72,
+    height: 72,
+    paddingTop: 12,
+    textAlignVertical: 'top',
   },
   fieldInputError: {
     borderColor: colors.danger,
