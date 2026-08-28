@@ -35,13 +35,35 @@ module.exports = ({ config }) => {
     localEnv.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     localEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
     localEnv.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const nvidiaApiKey =
+    process.env.EXPO_PUBLIC_NVIDIA_API_KEY ||
+    localEnv.EXPO_PUBLIC_NVIDIA_API_KEY ||
+    localEnv.NVIDIA_API_KEY;
+  const plugins = config.plugins ?? [];
+  const hasNavigationBarConfig = plugins.some((plugin) => (
+    Array.isArray(plugin) ? plugin[0] === 'expo-navigation-bar' : plugin === 'expo-navigation-bar'
+  ));
 
   return {
     ...config,
+    plugins: hasNavigationBarConfig
+      ? plugins
+      : [
+          ...plugins,
+          [
+            'expo-navigation-bar',
+            {
+              enforceContrast: false,
+              hidden: false,
+              style: 'dark',
+            },
+          ],
+        ],
     extra: {
       ...config.extra,
       supabaseUrl,
       supabaseAnonKey,
+      nvidiaApiKey,
     },
   };
 };
