@@ -229,35 +229,21 @@ type OnboardingStep = 'dream' | 'starters';
 type DreamId = 'maintain' | 'dedication' | 'calm' | 'strength' | 'mind' | 'rest';
 type PolicyKey = 'privacy' | 'terms' | 'cookies' | 'security' | 'accessibility';
 
-import {
-  buildAuthAccountFromUser,
-  buildLocalAuthAccount,
-  cleanAuthError,
-  isAuthNetworkError,
-  lookupProfileForUser,
-  resolveIdentifierEmail,
-  type AuthAccount,
-  type SupabaseProfile,
-} from './src/lib/auth';
-import {
-  clamp,
-  currentStreakFromHeat,
-  daysBetweenIso,
-  isoDaysBack,
-  todayIso,
-} from './src/lib/ritual-math';
-import {
-  cancelReminderNotification,
-  ensureReminderPermissions,
-  nextReminderDate,
-  ritualReminderBody,
-  readReminderScheduleRecord,
-  syncRitualReminderNotifications,
-} from './src/lib/notifications';
-import {
-  normalizeStoredAuth,
-  usernameFromValue,
-} from './src/lib/state';
+type AuthAccount = {
+  id?: string;
+  username: string;
+  password: string;
+  email: string;
+  name?: string;
+  age?: number;
+  city?: string;
+  mobile?: string;
+  countryCode?: string;
+  gender?: string;
+  habitFocus?: string;
+  profileComplete?: boolean;
+  profileSetupSkipped?: boolean;
+};
 
 type ProfileSetupData = {
   name: string;
@@ -464,24 +450,16 @@ const colors = {
 };
 
 const runtimeExtra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
-const env = process.env as Record<string, string | undefined>;
-const supabaseUrl = env.EXPO_PUBLIC_SUPABASE_URL
-  ?? env.VITE_SUPABASE_URL
-  ?? (typeof runtimeExtra.supabaseUrl === 'string' ? runtimeExtra.supabaseUrl : undefined);
-const supabaseAnonKey = env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  ?? env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-  ?? env.VITE_SUPABASE_PUBLISHABLE_KEY
-  ?? (typeof runtimeExtra.supabaseAnonKey === 'string' ? runtimeExtra.supabaseAnonKey : undefined);
-const authRedirectUrl = Platform.OS === 'web' && typeof window !== 'undefined'
-  ? window.location.origin
-  : undefined;
+const supabaseUrl = typeof runtimeExtra.supabaseUrl === 'string' ? runtimeExtra.supabaseUrl : undefined;
+const supabaseAnonKey = typeof runtimeExtra.supabaseAnonKey === 'string' ? runtimeExtra.supabaseAnonKey : undefined;
+const nvidiaApiKey = typeof runtimeExtra.nvidiaApiKey === 'string' ? runtimeExtra.nvidiaApiKey : undefined;
 const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: Platform.OS === 'web',
+        detectSessionInUrl: false,
       },
     })
   : null;
@@ -1106,11 +1084,82 @@ function normalizeState(parsed: Partial<SavedFlowState> = {}): SavedFlowState {
 }
 
 function normalizeAuth(parsed: Partial<StoredAuth> | null): StoredAuth {
-  return normalizeStoredAuth(parsed, DEFAULT_AUTH_ACCOUNT);
+  const parsedAccount = parsed?.account;
+  const account = parsedAccount?.username && parsedAccount.password
+    ? {
+        id: parsedAccount.id,
+        username: parsedAccount.username,
+        password: parsedAccount.password,
+        email: parsedAccount.email || DEFAULT_AUTH_ACCOUNT.email,
+        name: parsedAccount.name,
+        age: parsedAccount.age,
+        city: parsedAccount.city,
+        mobile: parsedAccount.mobile,
+        countryCode: parsedAccount.countryCode || DEFAULT_COUNTRY_CODE,
+        gender: parsedAccount.gender,
+        habitFocus: parsedAccount.habitFocus,
+        profileComplete: parsedAccount.profileComplete ?? true,
+        profileSetupSkipped: parsedAccount.profileSetupSkipped ?? false,
+      }
+    : DEFAULT_AUTH_ACCOUNT;
+  return {
+    account,
+    signedIn: parsed?.signedIn ?? false,
+  };
 }
 
 function toUsername(value: string) {
-  return usernameFromValue(value);
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || `ritual_${Date.now()}`;
+}
+
+function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfile> | null): AuthAccount {
+  const email = user.email ?? profile?.email ?? '';
+  const name = profile?.name || user.user_metadata?.full_name || '';
+  const username = name || profile?.username || user.user_metadata?.username || email.split('@')[0] || 'Rituals user';
+  return {
+    id: user.id,
+    username,
+    email,
+    password: '',
+    name: name || username,
+    age: typeof profile?.age === 'number' ? profile.age : undefined,
+    city: profile?.city ?? undefined,
+    mobile: profile?.mobile ?? undefined,
+    countryCode: profile?.country_code || DEFAULT_COUNTRY_CODE,
+    gender: profile?.gender ?? undefined,
+    habitFocus: profile?.habit_focus ?? undefined,
+    profileComplete: profile?.profile_complete ?? false,
+    profileSetupSkipped: profile?.profile_setup_skipped ?? false,
+  };
+}
+
+function isAuthNetworkError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /fetch failed|network request failed|sslhandshake|certificate|trust anchor|failed to fetch/i.test(message);
+}
+
+function cleanAuthError(error: unknown, fallback: string) {
+  if (isAuthNetworkError(error)) {
+    return 'Secure connection to Supabase failed on this device. Your account can continue locally now and sync when the device network/certificate trust is fixed.';
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function localAuthAccount(username: string, password: string, email: string, name?: string): AuthAccount {
+  return {
+    id: `local-${Date.now()}`,
+    username,
+    password,
+    email,
+    name: name || username,
+    profileComplete: false,
+    profileSetupSkipped: false,
+  };
 }
 
 async function getProfileForUser(user: SupabaseUser) {
@@ -1124,11 +1173,6 @@ async function getProfileForUser(user: SupabaseUser) {
 async function upsertProfileForUser(user: SupabaseUser, username: string, name: string, email: string) {
   if (!supabase) {
     return null;
-  }
-
-  const existingProfile = await getProfileForUser(user);
-  if (existingProfile) {
-    return existingProfile;
   }
 
   const { data, error } = await supabase
@@ -1889,7 +1933,6 @@ function AuthenticatedApp() {
             ...nextAccount,
             profileComplete: nextAccount.profileComplete ?? false,
             profileSetupSkipped: false,
-            starterOnboardingPending: true,
           };
           setAccount(createdAccount);
           setSignedIn(true);
@@ -1923,11 +1966,6 @@ function AuthenticatedApp() {
       email={account.email}
       habitFocus={account.habitFocus}
       profileIncomplete={account.profileComplete === false}
-      starterOnboardingPending={account.starterOnboardingPending === true}
-      onStarterOnboardingComplete={() => {
-        const nextAccount = { ...account, starterOnboardingPending: false };
-        saveLocalAuth(nextAccount, true);
-      }}
       onOpenProfileSetup={() => setProfileSetupSource('profile')}
       onLogout={() => {
         if (supabase) {
@@ -2071,10 +2109,6 @@ function AuthGate({
       setError('Use a stronger password before creating an account.');
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
     if (!termsAccepted) {
       setError('Agree to the Terms of Service and Privacy Policy to continue.');
       return;
@@ -2086,7 +2120,6 @@ function AuthGate({
           email: trimmedEmail,
           password,
           options: {
-            emailRedirectTo: authRedirectUrl,
             data: {
               username,
               full_name: trimmedName,
@@ -2100,8 +2133,11 @@ function AuthGate({
           setError(signUpError.message || 'Unable to create account.');
           return;
         }
+
         if (!responseUser) {
-          setError('Supabase did not return a user after signup. Please try again or check your email confirmation flow.');
+          const fallbackAccount = localAuthAccount(username, password, trimmedEmail, trimmedName);
+          setMessage('Supabase returned an empty response, so this account was saved locally. Check your email to confirm and sign in when the domain is ready.');
+          onCreate(fallbackAccount);
           return;
         }
 
@@ -2111,7 +2147,7 @@ function AuthGate({
         if (!responseSession) {
           setMessage('Account created. Check your email to confirm, then sign in.');
           onCreate({
-            ...buildAuthAccountFromUser(responseUser, null),
+            ...authAccountFromUser(responseUser, null),
             username,
             password,
             email: trimmedEmail,
@@ -2122,14 +2158,15 @@ function AuthGate({
           return;
         }
         onCreate({
-          ...buildAuthAccountFromUser(responseUser, profile),
+          ...authAccountFromUser(responseUser, profile),
           password,
           profileComplete: false,
           profileSetupSkipped: false,
         });
       } catch (authError) {
         if (isAuthNetworkError(authError)) {
-          setError('Secure connection to Supabase failed on this device, so the account was not created and no email was sent. Check the device date/time, update Android System WebView or use the Vercel web app, then try again.');
+          setMessage('Supabase is unreachable from this device, so Rituals saved this account locally for now.');
+          onCreate(localAuthAccount(username, password, trimmedEmail, trimmedName));
           return;
         }
         setError(cleanAuthError(authError, 'Unable to create account.'));
@@ -2152,9 +2189,7 @@ function AuthGate({
       try {
         setSubmitting(true);
         const resetEmail = await resolveEmailForIdentifier(normalizedIdentifier);
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-          redirectTo: authRedirectUrl,
-        });
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail);
         if (resetError) {
           setError(resetError.message);
           return;
@@ -2296,19 +2331,6 @@ function AuthGate({
                         )}
                       />
                       <PasswordStrengthMeter strength={strength} />
-                      <AuthInput
-                        icon={Lock}
-                        label="Confirm password"
-                        value={confirmPassword}
-                        onChangeText={(value) => {
-                          setConfirmPassword(value);
-                          clearFeedback();
-                        }}
-                        placeholder="Re-enter password"
-                        secureTextEntry={!passwordVisible}
-                        returnKeyType="done"
-                        onSubmitEditing={submit}
-                      />
                       <TermsAgreement
                         checked={termsAccepted}
                         onToggle={() => {
@@ -2399,6 +2421,7 @@ function AuthGate({
                       </View>
                       <View style={styles.authSocialRow}>
                         <SocialButton label="Google" reduceMotion={reduceMotion} onPress={() => setMessage('Google sign-in will connect after Supabase Auth setup.')} />
+                        <SocialButton label="Apple" reduceMotion={reduceMotion} onPress={() => setMessage('Apple sign-in will connect after Supabase Auth setup.')} />
                       </View>
                     </>
                   ) : null}
@@ -3333,15 +3356,16 @@ function PolicyModal({ policy, onClose }: { policy: PolicyKey | null; onClose: (
   );
 }
 
-function SocialButton({ label, reduceMotion, onPress }: { label: 'Google'; reduceMotion: boolean; onPress: () => void }) {
+function SocialButton({ label, reduceMotion, onPress }: { label: 'Google' | 'Apple'; reduceMotion: boolean; onPress: () => void }) {
+  const isApple = label === 'Apple';
   return (
     <PressScale
       reduceMotion={reduceMotion}
       onPress={onPress}
-      style={[styles.authSocialButton, styles.authSocialButtonGoogle]}
+      style={[styles.authSocialButton, isApple ? styles.authSocialButtonApple : styles.authSocialButtonGoogle]}
     >
-      <GoogleGMark />
-      <Text style={[styles.authSocialText, styles.authSocialTextGoogle]}>
+      {isApple ? <AppleGlyph /> : <GoogleGMark />}
+      <Text style={[styles.authSocialText, isApple ? styles.authSocialTextApple : styles.authSocialTextGoogle]}>
         Continue with {label}
       </Text>
     </PressScale>
@@ -3355,6 +3379,17 @@ function GoogleGMark() {
       <Path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.583-5.036-3.71H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853" />
       <Path d="M3.964 10.712A5.41 5.41 0 0 1 3.682 9c0-.594.102-1.17.282-1.712V4.956H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.044l3.007-2.332Z" fill="#FBBC05" />
       <Path d="M9 3.58c1.322 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.956l3.007 2.332C4.672 5.161 6.656 3.58 9 3.58Z" fill="#EA4335" />
+    </Svg>
+  );
+}
+
+function AppleGlyph() {
+  return (
+    <Svg width={16} height={18} viewBox="0 0 16 18" accessibilityLabel="Apple">
+      <Path
+        d="M12.94 9.55c-.02-1.86 1.52-2.75 1.59-2.8-.87-1.27-2.21-1.44-2.68-1.46-1.14-.12-2.23.67-2.81.67-.58 0-1.47-.65-2.42-.63-1.25.02-2.4.73-3.04 1.85-1.3 2.25-.33 5.58.93 7.4.62.9 1.36 1.91 2.33 1.87.93-.04 1.29-.6 2.41-.6 1.12 0 1.44.6 2.42.58 1-.02 1.64-.91 2.25-1.81.71-1.04 1-2.04 1.02-2.09-.02-.01-1.98-.76-2-2.98ZM11.1 4.09c.51-.62.86-1.49.76-2.35-.74.03-1.64.49-2.17 1.11-.48.56-.9 1.45-.79 2.31.83.06 1.68-.42 2.2-1.07Z"
+        fill="#FFFFFF"
+      />
     </Svg>
   );
 }
@@ -3405,8 +3440,6 @@ function FlowApp({
   email,
   habitFocus,
   profileIncomplete,
-  starterOnboardingPending,
-  onStarterOnboardingComplete,
   onOpenProfileSetup,
   onLogout,
 }: {
@@ -3415,8 +3448,6 @@ function FlowApp({
   email?: string;
   habitFocus?: string;
   profileIncomplete: boolean;
-  starterOnboardingPending: boolean;
-  onStarterOnboardingComplete: () => void;
   onOpenProfileSetup: () => void;
   onLogout: () => void;
 }) {
@@ -3770,7 +3801,6 @@ function FlowApp({
     setStateDate(todayIso());
     setActiveTab('today');
     setNewRitualId(nextRituals[0]?.id ?? null);
-    onStarterOnboardingComplete();
     showToast('Starter rituals saved');
     impact();
     setTimeout(() => setNewRitualId(null), 650);
@@ -4067,7 +4097,7 @@ function FlowApp({
     );
   }
 
-  if (starterOnboardingPending && !onboardingDream && rituals.length === 0) {
+  if (!onboardingDream && rituals.length === 0) {
     return (
       <OnboardingDreamFlow
         reduceMotion={reduceMotion}
@@ -7990,12 +8020,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#DADCE0',
   },
+  authSocialButtonApple: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
   authSocialText: {
     fontFamily: fontBodyBold,
     fontSize: 13.5,
   },
   authSocialTextGoogle: {
     color: '#3C4043',
+  },
+  authSocialTextApple: {
+    color: '#FFFFFF',
   },
   authFooterLine: {
     flexDirection: 'row',
