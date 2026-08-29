@@ -229,22 +229,35 @@ type OnboardingStep = 'dream' | 'starters';
 type DreamId = 'maintain' | 'dedication' | 'calm' | 'strength' | 'mind' | 'rest';
 type PolicyKey = 'privacy' | 'terms' | 'cookies' | 'security' | 'accessibility';
 
-type AuthAccount = {
-  id?: string;
-  username: string;
-  password: string;
-  email: string;
-  name?: string;
-  age?: number;
-  city?: string;
-  mobile?: string;
-  countryCode?: string;
-  gender?: string;
-  habitFocus?: string;
-  profileComplete?: boolean;
-  profileSetupSkipped?: boolean;
-  starterOnboardingPending?: boolean;
-};
+import {
+  buildAuthAccountFromUser,
+  buildLocalAuthAccount,
+  cleanAuthError,
+  isAuthNetworkError,
+  lookupProfileForUser,
+  resolveIdentifierEmail,
+  type AuthAccount,
+  type SupabaseProfile,
+} from './src/lib/auth';
+import {
+  clamp,
+  currentStreakFromHeat,
+  daysBetweenIso,
+  isoDaysBack,
+  todayIso,
+} from './src/lib/ritual-math';
+import {
+  cancelReminderNotification,
+  ensureReminderPermissions,
+  nextReminderDate,
+  ritualReminderBody,
+  readReminderScheduleRecord,
+  syncRitualReminderNotifications,
+} from './src/lib/notifications';
+import {
+  normalizeStoredAuth,
+  usernameFromValue,
+} from './src/lib/state';
 
 type ProfileSetupData = {
   name: string;
@@ -286,26 +299,6 @@ type CoachMessage = {
   pending?: boolean;
 };
 
-type SupabaseProfile = {
-  id: string;
-  username: string | null;
-  name: string | null;
-  email: string | null;
-  avatar_emoji?: string | null;
-  dark_theme?: boolean | null;
-  haptics_enabled?: boolean | null;
-  push_enabled?: boolean | null;
-  age?: number | null;
-  city?: string | null;
-  mobile?: string | null;
-  country_code?: string | null;
-  gender?: string | null;
-  habit_focus?: string | null;
-  profile_complete?: boolean | null;
-  profile_setup_skipped?: boolean | null;
-  flo_tone?: FloTone | null;
-};
-
 type SupabaseHabit = {
   id: string;
   name: string;
@@ -321,7 +314,9 @@ type SupabaseHabit = {
 
 type SupabaseHabitLog = {
   habit_id: string;
-  log_date: string;
+  activity_date?: string | null;
+  log_date?: string | null;
+  completed?: boolean | null;
   completed_at?: string | null;
 };
 
@@ -477,8 +472,6 @@ const supabaseAnonKey = env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   ?? env.EXPO_PUBLIC_SUPABASE_ANON_KEY
   ?? env.VITE_SUPABASE_PUBLISHABLE_KEY
   ?? (typeof runtimeExtra.supabaseAnonKey === 'string' ? runtimeExtra.supabaseAnonKey : undefined);
-const nvidiaApiKey = env.EXPO_PUBLIC_NVIDIA_API_KEY
-  ?? (typeof runtimeExtra.nvidiaApiKey === 'string' ? runtimeExtra.nvidiaApiKey : undefined);
 const authRedirectUrl = Platform.OS === 'web' && typeof window !== 'undefined'
   ? window.location.origin
   : undefined;
@@ -699,10 +692,6 @@ const defaultState: SavedFlowState = {
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
 
 function percentFromWeekly(weekly: number[]) {
   if (!weekly.length) {
@@ -948,20 +937,6 @@ function dateFromReminderTime(value: string) {
   return date;
 }
 
-function nextReminderDate(value: string) {
-  const date = dateFromReminderTime(value);
-  if (date.getTime() <= Date.now()) {
-    date.setDate(date.getDate() + 1);
-  }
-  return date;
-}
-
-function ritualReminderBody(ritual: Pick<Ritual, 'name' | 'goalAmount' | 'goalUnit'>) {
-  const name = ritual.name.trim() || 'your ritual';
-  const goal = goalLabel(ritual.goalAmount, ritual.goalUnit);
-  return goal ? `Still time for your ${goal} today?` : `Still time to check in with ${name} today?`;
-}
-
 function ritualReminderExplanation(name: string, goalAmount: number | undefined, goalUnit: GoalUnit | undefined, reminderTime?: string) {
   const displayName = name.trim() || 'this ritual';
   if (!reminderTime) {
@@ -1030,61 +1005,52 @@ function localFloCheckinReply(ritual: Ritual, reason: string, tone: FloTone, has
 
 async function generateFloCheckinReply(ritual: Ritual, reason: string, tone: FloTone, hasPattern: boolean) {
   const fallback = localFloCheckinReply(ritual, reason, tone, hasPattern);
-  if (!nvidiaApiKey) {
+
+  if (!supabase) {
     return fallback;
   }
 
   try {
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${nvidiaApiKey}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+    const { data, error } = await supabase.functions.invoke('flo-checkin-reply', {
+      body: {
+        ritual: {
+          name: ritual.name,
+          reminderTime: ritual.reminderTime,
+          why: ritual.why ?? '',
+        },
+        reason,
+        tone,
+        hasPattern,
       },
-      body: JSON.stringify({
-        model: 'moonshotai/kimi-k3',
-        max_tokens: 600,
-        temperature: 0.7,
-        stream: false,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are Flo, the companion inside a ritual habit app. A user missed a scheduled ritual and gave a reason. Respond briefly in 2-4 sentences, warm and curious, never a scold. Return strict JSON with message, category, protect_streak, suggested_action. Category must be aligned_tradeoff, circumstantial, drift, or pattern.',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              ritual_name: ritual.name,
-              scheduled_window: reminderWindowLabel(ritual.reminderTime),
-              ritual_why: ritual.why ?? '',
-              user_reason: reason,
-              recent_pattern: hasPattern ? 'This is the 3rd+ similar miss this week.' : undefined,
-              tone_setting: tone,
-            }),
-          },
-        ],
-      }),
     });
-    const json = await response.json();
-    const content = json?.choices?.[0]?.message?.content;
-    const parsed = typeof content === 'string' ? JSON.parse(content.replace(/^```json\s*|\s*```$/g, '')) : null;
+
+    if (error || !data || typeof data !== 'object') {
+      return fallback;
+    }
+
+    const reply = data as Partial<{
+      message: string;
+      category: CheckinCategory;
+      protect_streak: boolean;
+      suggested_action: string | null;
+    }>;
+
     if (
-      parsed
-      && typeof parsed.message === 'string'
-      && isCheckinCategory(parsed.category)
-      && typeof parsed.protect_streak === 'boolean'
+      typeof reply.message === 'string'
+      && isCheckinCategory(reply.category)
+      && typeof reply.protect_streak === 'boolean'
     ) {
       return {
-        message: parsed.message,
-        category: parsed.category as CheckinCategory,
-        protect_streak: parsed.protect_streak,
-        suggested_action: typeof parsed.suggested_action === 'string' ? parsed.suggested_action : null,
+        message: reply.message,
+        category: reply.category,
+        protect_streak: reply.protect_streak,
+        suggested_action: typeof reply.suggested_action === 'string' ? reply.suggested_action : null,
       };
     }
   } catch {
     return fallback;
   }
+
   return fallback;
 }
 
@@ -1140,87 +1106,11 @@ function normalizeState(parsed: Partial<SavedFlowState> = {}): SavedFlowState {
 }
 
 function normalizeAuth(parsed: Partial<StoredAuth> | null): StoredAuth {
-  const parsedAccount = parsed?.account;
-  const account = parsedAccount?.username && parsedAccount.password
-    ? {
-        id: parsedAccount.id,
-        username: parsedAccount.username,
-        password: parsedAccount.password,
-        email: parsedAccount.email || DEFAULT_AUTH_ACCOUNT.email,
-        name: parsedAccount.name,
-        age: parsedAccount.age,
-        city: parsedAccount.city,
-        mobile: parsedAccount.mobile,
-        countryCode: parsedAccount.countryCode || DEFAULT_COUNTRY_CODE,
-        gender: parsedAccount.gender,
-        habitFocus: parsedAccount.habitFocus,
-        profileComplete: parsedAccount.profileComplete ?? true,
-        profileSetupSkipped: parsedAccount.profileSetupSkipped ?? false,
-        starterOnboardingPending: parsedAccount.starterOnboardingPending ?? false,
-      }
-    : DEFAULT_AUTH_ACCOUNT;
-  return {
-    account,
-    signedIn: parsed?.signedIn ?? false,
-  };
+  return normalizeStoredAuth(parsed, DEFAULT_AUTH_ACCOUNT);
 }
 
 function toUsername(value: string) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return normalized || `ritual_${Date.now()}`;
-}
-
-function authAccountFromUser(user: SupabaseUser, profile?: Partial<SupabaseProfile> | null): AuthAccount {
-  const email = user.email ?? profile?.email ?? '';
-  const name = profile?.name || user.user_metadata?.full_name || '';
-  const username = name || profile?.username || user.user_metadata?.username || email.split('@')[0] || 'Rituals user';
-  const profileComplete = profile?.profile_complete ?? false;
-  const profileSetupSkipped = profile?.profile_setup_skipped ?? false;
-  return {
-    id: user.id,
-    username,
-    email,
-    password: '',
-    name: name || username,
-    age: typeof profile?.age === 'number' ? profile.age : undefined,
-    city: profile?.city ?? undefined,
-    mobile: profile?.mobile ?? undefined,
-    countryCode: profile?.country_code || DEFAULT_COUNTRY_CODE,
-    gender: profile?.gender ?? undefined,
-    habitFocus: profile?.habit_focus ?? undefined,
-    profileComplete,
-    profileSetupSkipped,
-    starterOnboardingPending: !profileComplete && !profileSetupSkipped,
-  };
-}
-
-function isAuthNetworkError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /fetch failed|network request failed|sslhandshake|certificate|trust anchor|failed to fetch/i.test(message);
-}
-
-function cleanAuthError(error: unknown, fallback: string) {
-  if (isAuthNetworkError(error)) {
-    return 'Secure connection to Supabase failed on this device. Check the device date/time, update the emulator system image or use the Vercel web app, then try again.';
-  }
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function localAuthAccount(username: string, password: string, email: string, name?: string): AuthAccount {
-  return {
-    id: `local-${Date.now()}`,
-    username,
-    password,
-    email,
-    name: name || username,
-    profileComplete: false,
-    profileSetupSkipped: false,
-    starterOnboardingPending: true,
-  };
+  return usernameFromValue(value);
 }
 
 async function getProfileForUser(user: SupabaseUser) {
@@ -1228,17 +1118,7 @@ async function getProfileForUser(user: SupabaseUser) {
     return null;
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PROFILE_SELECT)
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (error) {
-    return null;
-  }
-
-  return data as SupabaseProfile | null;
+  return lookupProfileForUser(supabase, user);
 }
 
 async function upsertProfileForUser(user: SupabaseUser, username: string, name: string, email: string) {
@@ -1325,37 +1205,7 @@ async function saveProfileSetupForAccount(
 }
 
 async function resolveEmailForIdentifier(identifier: string) {
-  if (!supabase) {
-    return identifier.trim().toLowerCase();
-  }
-
-  const normalized = identifier.trim().toLowerCase();
-  if (isValidEmail(normalized)) {
-    return normalized;
-  }
-
-  const { data, error } = await supabase.rpc('email_for_username', { lookup_username: normalized });
-  if (error || typeof data !== 'string' || !data) {
-    throw new Error('Account not found. Use your email or correct username.');
-  }
-
-  return data;
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function daysBetweenIso(from?: string, to = todayIso()) {
-  if (!from) {
-    return 0;
-  }
-  const start = new Date(`${from}T00:00:00.000Z`).getTime();
-  const end = new Date(`${to}T00:00:00.000Z`).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
-    return 0;
-  }
-  return Math.max(0, Math.floor((end - start) / 86400000));
+  return resolveIdentifierEmail(supabase, identifier);
 }
 
 function shiftBinarySeries(values: number[], distance: number) {
@@ -1366,112 +1216,6 @@ function shiftBinarySeries(values: number[], distance: number) {
     return Array.from({ length: values.length }, () => 0);
   }
   return [...values.slice(distance), ...Array.from({ length: distance }, () => 0)];
-}
-
-async function ensureReminderPermissions() {
-  const notifications = notificationsModule;
-  if (!notifications) {
-    return false;
-  }
-  if (Platform.OS === 'android') {
-    await notifications.setNotificationChannelAsync('ritual-reminders', {
-      name: 'Ritual reminders',
-      importance: notifications.AndroidImportance.DEFAULT,
-    });
-  }
-  const existing = await notifications.getPermissionsAsync();
-  if (existing.status === 'granted') {
-    return true;
-  }
-  const requested = await notifications.requestPermissionsAsync();
-  return requested.status === 'granted';
-}
-
-async function readReminderScheduleRecord(): Promise<ReminderScheduleRecord> {
-  const stored = await AsyncStorage.getItem(REMINDER_NOTIFICATION_STORAGE_KEY);
-  if (!stored) {
-    return {};
-  }
-  try {
-    return JSON.parse(stored) as ReminderScheduleRecord;
-  } catch {
-    return {};
-  }
-}
-
-async function cancelReminderNotification(record?: { notificationId: string }) {
-  if (!record?.notificationId) {
-    return;
-  }
-  await notificationsModule?.cancelScheduledNotificationAsync(record.notificationId).catch(() => undefined);
-}
-
-async function syncRitualReminderNotifications(rituals: Ritual[], enabled: boolean) {
-  const notifications = notificationsModule;
-  if (!notifications) {
-    return;
-  }
-
-  const stored = await readReminderScheduleRecord();
-  const next: ReminderScheduleRecord = {};
-  const byId = new Map(rituals.map((ritual) => [ritual.id, ritual]));
-  const schedulableRituals = rituals.filter((ritual) => ritual.reminderTime && !ritual.doneToday);
-
-  if (!enabled) {
-    await Promise.all(Object.values(stored).map(cancelReminderNotification));
-    await AsyncStorage.removeItem(REMINDER_NOTIFICATION_STORAGE_KEY);
-    return;
-  }
-
-  for (const [ritualId, record] of Object.entries(stored)) {
-    const ritual = byId.get(ritualId);
-    const body = ritual ? ritualReminderBody(ritual) : '';
-    if (!ritual || !ritual.reminderTime || ritual.doneToday || record.reminderTime !== ritual.reminderTime || record.body !== body) {
-      await cancelReminderNotification(record);
-    } else {
-      next[ritualId] = record;
-    }
-  }
-
-  if (!schedulableRituals.some((ritual) => !next[ritual.id])) {
-    await AsyncStorage.setItem(REMINDER_NOTIFICATION_STORAGE_KEY, JSON.stringify(next));
-    return;
-  }
-
-  const hasPermission = await ensureReminderPermissions();
-  if (!hasPermission) {
-    return;
-  }
-
-  for (const ritual of schedulableRituals) {
-    if (!ritual.reminderTime || next[ritual.id]) {
-      continue;
-    }
-    const body = ritualReminderBody(ritual);
-    const notificationId = await notifications.scheduleNotificationAsync({
-      content: {
-        title: `${ritual.name} reminder`,
-        body,
-        data: { ritualId: ritual.id, screen: 'today' },
-      },
-      trigger: {
-        type: notifications.SchedulableTriggerInputTypes.DATE,
-        date: nextReminderDate(ritual.reminderTime),
-        channelId: 'ritual-reminders',
-      },
-    });
-    next[ritual.id] = { notificationId, reminderTime: ritual.reminderTime, body };
-  }
-
-  await AsyncStorage.setItem(REMINDER_NOTIFICATION_STORAGE_KEY, JSON.stringify(next));
-}
-
-function isoDaysBack(count: number) {
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (count - 1 - index));
-    return date.toISOString().slice(0, 10);
-  });
 }
 
 function paletteToDbColor(paletteKey: PaletteKey) {
@@ -1489,17 +1233,6 @@ function dbColorToPalette(color: string | null | undefined, fallbackIndex: numbe
   if (color === 'violet') return 'focus';
   if (color === 'sky') return 'water';
   return paletteRotation[fallbackIndex % paletteRotation.length];
-}
-
-function currentStreakFromHeat(heat: number[]) {
-  let streak = 0;
-  for (let index = heat.length - 1; index >= 0; index -= 1) {
-    if (!heat[index]) {
-      break;
-    }
-    streak += 1;
-  }
-  return streak;
 }
 
 function longestStreakFromHeat(heat: number[]) {
@@ -1570,16 +1303,20 @@ function ritualsFromSupabaseRows(habits: SupabaseHabit[], logs: SupabaseHabitLog
   const today = todayIso();
   const logsByHabit = new Map<string, SupabaseHabitLog[]>();
 
-  logs.forEach((log) => {
+  logs.filter((log) => log.completed !== false).forEach((log) => {
+    const activityDate = log.activity_date ?? log.log_date;
+    if (!activityDate) {
+      return;
+    }
     const rows = logsByHabit.get(log.habit_id) ?? [];
-    rows.push(log);
+    rows.push({ ...log, activity_date: activityDate });
     logsByHabit.set(log.habit_id, rows);
   });
 
   return habits.map((habit, index): Ritual => {
     const habitLogs = logsByHabit.get(habit.id) ?? [];
-    const dates = new Set(habitLogs.map((log) => log.log_date));
-    const todayLog = habitLogs.find((log) => log.log_date === today);
+    const dates = new Set(habitLogs.map((log) => log.activity_date).filter(Boolean));
+    const todayLog = habitLogs.find((log) => log.activity_date === today);
     const heat = days30.map((day) => (dates.has(day) ? 1 : 0));
     const weekly = days7.map((day) => (dates.has(day) ? 1 : 0));
     const paletteKey = isPaletteKey(habit.palette_key) ? habit.palette_key : dbColorToPalette(habit.color, index);
@@ -1622,9 +1359,10 @@ async function loadSupabaseFlowState(userId: string): Promise<Partial<SavedFlowS
 
   const { data: logs, error: logsError } = await supabase
     .from('habit_logs')
-    .select('habit_id,log_date,completed_at')
+    .select('habit_id,activity_date,log_date,completed,completed_at')
     .eq('user_id', userId)
-    .gte('log_date', since);
+    .eq('completed', true)
+    .gte('activity_date', since);
 
   if (logsError) {
     throw logsError;
@@ -2002,7 +1740,7 @@ function AuthenticatedApp() {
           const { data } = await supabase.auth.getSession();
           if (data.session?.user) {
             const profile = await getProfileForUser(data.session.user);
-            const nextAccount = authAccountFromUser(data.session.user, profile);
+            const nextAccount = buildAuthAccountFromUser(data.session.user, profile);
             if (mounted) {
               setAccount(nextAccount);
               setSignedIn(true);
@@ -2059,7 +1797,7 @@ function AuthenticatedApp() {
         return;
       }
       const profile = await getProfileForUser(session.user);
-      const nextAccount = authAccountFromUser(session.user, profile);
+      const nextAccount = buildAuthAccountFromUser(session.user, profile);
       if (mounted) {
         setAccount(nextAccount);
         setSignedIn(true);
@@ -2297,7 +2035,7 @@ function AuthGate({
           return;
         }
         const profile = await getProfileForUser(data.user);
-        onLogin({ ...authAccountFromUser(data.user, profile), password });
+        onLogin({ ...buildAuthAccountFromUser(data.user, profile), password });
       } catch (authError) {
         if (localMatches) {
           onLogin(account);
@@ -2373,7 +2111,7 @@ function AuthGate({
         if (!responseSession) {
           setMessage('Account created. Check your email to confirm, then sign in.');
           onCreate({
-            ...authAccountFromUser(responseUser, null),
+            ...buildAuthAccountFromUser(responseUser, null),
             username,
             password,
             email: trimmedEmail,
@@ -2384,7 +2122,7 @@ function AuthGate({
           return;
         }
         onCreate({
-          ...authAccountFromUser(responseUser, profile),
+          ...buildAuthAccountFromUser(responseUser, profile),
           password,
           profileComplete: false,
           profileSetupSkipped: false,
@@ -2400,7 +2138,7 @@ function AuthGate({
       }
       return;
     }
-    onCreate(localAuthAccount(username, password, trimmedEmail, trimmedName));
+    onCreate(buildLocalAuthAccount(username, password, trimmedEmail, trimmedName));
   };
 
   const submitReset = async () => {
@@ -3855,7 +3593,12 @@ function FlowApp({
     if (!hydrated) {
       return;
     }
-    syncRitualReminderNotifications(rituals, settings.pushNotifications).catch(() => undefined);
+    syncRitualReminderNotifications({
+      rituals,
+      enabled: settings.pushNotifications,
+      notifications: notificationsModule as never,
+      storageKey: REMINDER_NOTIFICATION_STORAGE_KEY,
+    }).catch(() => undefined);
   }, [hydrated, rituals, settings.pushNotifications]);
 
   const doneCount = useMemo(
@@ -4091,18 +3834,20 @@ function FlowApp({
             {
               habit_id: ritualId,
               user_id: userId,
+              activity_date: logDate,
               log_date: logDate,
+              completed: true,
               completed_at: new Date().toISOString(),
               freeze_used: false,
             },
-            { onConflict: 'habit_id,log_date' },
+            { onConflict: 'user_id,habit_id,activity_date' },
           )
         : supabase
             .from('habit_logs')
             .delete()
             .eq('habit_id', ritualId)
             .eq('user_id', userId)
-            .eq('log_date', logDate);
+            .eq('activity_date', logDate);
 
       write.then(({ error: writeError }) => {
         if (writeError) {

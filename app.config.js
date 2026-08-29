@@ -65,24 +65,19 @@ function readLocalEnv() {
 }
 
 const localEnv = readLocalEnv();
+const readPublicConfig = (...values) => values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim();
 
 module.exports = ({ config }) => {
-  const supabaseUrl =
-    process.env.EXPO_PUBLIC_SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    localEnv.EXPO_PUBLIC_SUPABASE_URL ||
-    localEnv.VITE_SUPABASE_URL;
-  const supabaseAnonKey =
-    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    localEnv.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    localEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-    localEnv.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const nvidiaApiKey =
-    process.env.EXPO_PUBLIC_NVIDIA_API_KEY ||
-    localEnv.EXPO_PUBLIC_NVIDIA_API_KEY ||
-    localEnv.NVIDIA_API_KEY;
+  const supabaseUrl = readPublicConfig(
+    process.env.EXPO_PUBLIC_SUPABASE_URL,
+    localEnv.EXPO_PUBLIC_SUPABASE_URL,
+  );
+  const supabaseAnonKey = readPublicConfig(
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    localEnv.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    localEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  );
   const plugins = config.plugins ?? [];
   const hasNavigationBarConfig = plugins.some((plugin) => (
     Array.isArray(plugin) ? plugin[0] === 'expo-navigation-bar' : plugin === 'expo-navigation-bar'
@@ -105,9 +100,8 @@ module.exports = ({ config }) => {
         ],
     extra: {
       ...config.extra,
-      supabaseUrl,
-      supabaseAnonKey,
-      nvidiaApiKey,
+      ...(supabaseUrl ? { supabaseUrl } : {}),
+      ...(supabaseAnonKey ? { supabaseAnonKey } : {}),
     },
   };
 
