@@ -23,6 +23,7 @@ import {
   Easing,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -59,6 +60,7 @@ import Svg, {
   G,
   LinearGradient as SvgLinearGradient,
   Path,
+  Line,
   Stop,
 } from 'react-native-svg';
 import {
@@ -225,6 +227,7 @@ type BurstParticle = {
 type AuthMode = 'signIn' | 'createAccount' | 'forgot';
 type OnboardingStep = 'dream' | 'starters';
 type DreamId = 'maintain' | 'dedication' | 'calm' | 'strength' | 'mind' | 'rest';
+type PolicyKey = 'privacy' | 'terms' | 'cookies' | 'security' | 'accessibility';
 
 type AuthAccount = {
   id?: string;
@@ -370,6 +373,7 @@ const DEFAULT_AUTH_ACCOUNT: AuthAccount = {
   profileComplete: true,
   profileSetupSkipped: false,
 };
+const SUPPORT_EMAIL = 'support@rituals.app';
 const fontBody = 'PlusJakartaSans_500Medium';
 const fontBodyRegular = 'PlusJakartaSans_400Regular';
 const fontBodySemi = 'PlusJakartaSans_600SemiBold';
@@ -380,16 +384,64 @@ const fontSerifSemi = 'Fraunces_600SemiBold';
 const fontSerifBold = 'Fraunces_600SemiBold';
 
 const navGlassColors = {
-  pillBase: 'rgba(120,140,180,0.12)',
-  border: 'rgba(255,255,255,0.55)',
-  indicator: 'rgba(255,255,255,0.30)',
-  indicatorBorder: 'rgba(255,255,255,0.50)',
-  inactiveIcon: '#536783',
-  activeIcon: '#4FA8FF',
+  pillBase: 'rgba(255,255,255,0.28)',
+  border: 'rgba(255,255,255,0.68)',
+  knobGradient: ['rgba(255,255,255,0.94)', 'rgba(255,255,255,0.56)', 'rgba(255,255,255,0.34)'] as const,
+  knobBorder: 'rgba(255,255,255,0.72)',
+  inactiveIcon: '#8A92A0',
+  activeIcon: '#1C1C1E',
   iconGlow: 'rgba(255,255,255,0.85)',
 
-  addButtonGradient: ['#78BEFF', '#4FA8FF'] as const,
-  addButtonIcon: '#FFFFFF',
+  addButtonGradient: ['rgba(255,255,255,0.94)', 'rgba(225,230,238,0.68)'] as const,
+  addButtonIcon: '#1C1C1E',
+};
+
+const policyContent: Record<PolicyKey, { title: string; updated: string; body: string[] }> = {
+  privacy: {
+    title: 'Privacy Policy',
+    updated: 'Updated August 29, 2026',
+    body: [
+      'Rituals stores your account, profile, ritual names, reminder choices, completion history, and Flo check-ins so the app can keep your streaks and coaching personal.',
+      'Authentication is handled through Supabase. We do not sell personal data. App data is used to provide reminders, progress views, account recovery, and support.',
+      'AI check-ins may use your ritual name, reason, and tone setting to generate a reply. Do not enter highly sensitive personal information into free-text check-ins.',
+      'You can sign out from Profile. To request account deletion or data export, contact support from the app.',
+    ],
+  },
+  terms: {
+    title: 'Terms of Service',
+    updated: 'Updated August 29, 2026',
+    body: [
+      'Rituals is a habit and reflection app. It is not medical, financial, legal, or mental-health advice.',
+      'Use the app for lawful personal tracking only. You are responsible for the accuracy of rituals, reminders, and information you enter.',
+      'We may improve, pause, or change features as the product evolves. If paid features are introduced later, billing terms will be shown before purchase.',
+      'By creating an account, you agree to use Rituals respectfully and to keep your login details secure.',
+    ],
+  },
+  cookies: {
+    title: 'Cookie Policy',
+    updated: 'Updated August 29, 2026',
+    body: [
+      'The mobile app does not use browser cookies for core habit tracking.',
+      'If Rituals adds a marketing website or web dashboard later, cookie preferences and analytics choices should be shown there before public launch.',
+    ],
+  },
+  security: {
+    title: 'Security Policy',
+    updated: 'Updated August 29, 2026',
+    body: [
+      'Accounts use Supabase Auth. Keep email confirmation, password reset, and rate limits enabled in Supabase before public launch.',
+      'Never share secret keys in the app. Public mobile keys should only be publishable/anon keys protected by Row Level Security.',
+      `To report a vulnerability, contact ${SUPPORT_EMAIL} with steps to reproduce and avoid sharing another user's private data.`,
+    ],
+  },
+  accessibility: {
+    title: 'Accessibility Statement',
+    updated: 'Updated August 29, 2026',
+    body: [
+      'Rituals aims to support readable typography, clear contrast, large touch targets, screen-reader labels, and reduced-motion preferences.',
+      'If something is hard to read, tap, or navigate, send a bug report from Profile so it can be fixed before wider release.',
+    ],
+  },
 };
 
 function responsiveMaxWidth(width: number, maxWidth: number, horizontalPadding: number) {
@@ -481,33 +533,33 @@ const habitPalette: Record<PaletteKey, HabitPalette> = {
 const heroThemes: Record<HeroThemeKey, HeroTheme> = {
   morning: {
     key: 'morning',
-    backdrop: ['#FFF6EA', '#FFE3C2', '#FFCB8A'],
-    wave: ['#FFDCA6', '#FFB25B'],
-    accent: '#FF9F43',
+    backdrop: ['#FCE6C7', '#FBCB8C', '#F6A85C'],
+    wave: ['#F2BE7A', '#E8AA5B'],
+    accent: '#E38A2A',
     inkOnHero: '#7A4A12',
     greeting: 'Good Morning',
   },
   afternoon: {
     key: 'afternoon',
-    backdrop: ['#F5FAFF', '#DCEEFF', '#BFE3FF'],
-    wave: ['#BFE3FF', '#4FA8FF'],
-    accent: '#4FA8FF',
+    backdrop: ['#EAF5FF', '#CDE9FF', '#A9D6FF'],
+    wave: ['#BADCFA', '#8FC4F5'],
+    accent: '#2F80ED',
     inkOnHero: '#1C2B49',
     greeting: 'Good Afternoon',
   },
   evening: {
     key: 'evening',
-    backdrop: ['#ECE4F9', '#F3EDFB', '#C9B8EE'],
-    wave: ['#C9B8EE', '#8266C4'],
-    accent: '#8266C4',
+    backdrop: ['#E7DBFF', '#C7A9F2', '#9C7FDB'],
+    wave: ['#CBAEF2', '#A883E0'],
+    accent: '#7C57C9',
     inkOnHero: '#4A3684',
     greeting: 'Good Evening',
   },
   night: {
     key: 'night',
-    backdrop: ['#1B2445', '#232A5C', '#33357A'],
-    wave: ['#8483FF', '#5A57E8'],
-    accent: '#7A79FF',
+    backdrop: ['#1B1B3B', '#14142B', '#0C0C1E'],
+    wave: ['#6E64C6', '#4C46A0'],
+    accent: '#8C82E8',
     inkOnHero: '#E4E2FF',
     greeting: 'Good Night',
   },
@@ -521,6 +573,19 @@ const nightStars = Array.from({ length: 26 }, (_, index) => ({
   top: `${10 + ((index * 53) % 68)}%` as `${number}%`,
   delay: (index * 173) % 2300,
   opacity: 0.22 + ((index * 11) % 28) / 100,
+}));
+
+const ambientClouds = [
+  { id: 'cloud-large', width: 74, height: 28, top: 58, delay: 0, duration: 25000, opacity: 0.76 },
+  { id: 'cloud-small', width: 48, height: 18, top: 118, delay: 4200, duration: 32000, opacity: 0.68 },
+  { id: 'cloud-low', width: 60, height: 22, top: 236, delay: 8200, duration: 29000, opacity: 0.52 },
+];
+
+const ambientSparks = Array.from({ length: 10 }, (_, index) => ({
+  id: `spark-${index}`,
+  left: `${10 + ((index * 23) % 78)}%` as `${number}%`,
+  bottom: 24 + ((index * 19) % 92),
+  delay: (index * 390) % 2600,
 }));
 
 const paletteRotation: PaletteKey[] = ['water', 'running', 'gym', 'meditate', 'reading', 'focus', 'work', 'food', 'sleep', 'journal', 'creative', 'music', 'cycling', 'skincare', 'noPhone'];
@@ -2136,6 +2201,7 @@ function AuthGate({
   const [rememberMe, setRememberMe] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [activePolicy, setActivePolicy] = useState<PolicyKey | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -2257,17 +2323,28 @@ function AuthGate({
             },
           },
         });
-        if (signUpError || !data.user) {
-          setError(signUpError?.message ?? 'Unable to create account.');
+        const responseUser = data?.user ?? null;
+        const responseSession = data?.session ?? null;
+
+        if (signUpError) {
+          setError(signUpError.message || 'Unable to create account.');
           return;
         }
-        const profile = data.session
-          ? await upsertProfileForUser(data.user, username, trimmedName, trimmedEmail)
+
+        if (!responseUser) {
+          const fallbackAccount = localAuthAccount(username, password, trimmedEmail, trimmedName);
+          setMessage('Supabase returned an empty response, so this account was saved locally. Check your email to confirm and sign in when the domain is ready.');
+          onCreate(fallbackAccount);
+          return;
+        }
+
+        const profile = responseSession
+          ? await upsertProfileForUser(responseUser, username, trimmedName, trimmedEmail)
           : null;
-        if (!data.session) {
+        if (!responseSession) {
           setMessage('Account created. Check your email to confirm, then sign in.');
           onCreate({
-            ...authAccountFromUser(data.user, null),
+            ...authAccountFromUser(responseUser, null),
             username,
             password,
             email: trimmedEmail,
@@ -2278,7 +2355,7 @@ function AuthGate({
           return;
         }
         onCreate({
-          ...authAccountFromUser(data.user, profile),
+          ...authAccountFromUser(responseUser, profile),
           password,
           profileComplete: false,
           profileSetupSkipped: false,
@@ -2457,8 +2534,8 @@ function AuthGate({
                           setTermsAccepted((current) => !current);
                           clearFeedback();
                         }}
-                        onOpenTerms={() => setMessage('Terms of Service will open after the policy screen is connected.')}
-                        onOpenPrivacy={() => setMessage('Privacy Policy will open after the policy screen is connected.')}
+                        onOpenTerms={() => setActivePolicy('terms')}
+                        onOpenPrivacy={() => setActivePolicy('privacy')}
                         required={!termsAccepted && Boolean(error)}
                       />
                     </>
@@ -2560,6 +2637,7 @@ function AuthGate({
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
+      <PolicyModal policy={activePolicy} onClose={() => setActivePolicy(null)} />
     </View>
   );
 }
@@ -3443,6 +3521,38 @@ function TermsAgreement({
   );
 }
 
+function PolicyModal({ policy, onClose }: { policy: PolicyKey | null; onClose: () => void }) {
+  if (!policy) {
+    return null;
+  }
+  const content = policyContent[policy];
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.policyModalRoot}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+          <View style={styles.policyModalOverlay} />
+        </Pressable>
+        <View style={styles.policySheet}>
+          <View style={styles.policyHeader}>
+            <View>
+              <Text style={styles.policyTitle}>{content.title}</Text>
+              <Text style={styles.policyUpdated}>{content.updated}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close policy" onPress={onClose} style={styles.policyClose}>
+              <Text style={styles.policyCloseText}>x</Text>
+            </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.policyBody}>
+            {content.body.map((paragraph) => (
+              <Text key={paragraph} style={styles.policyParagraph}>{paragraph}</Text>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function SocialButton({ label, reduceMotion, onPress }: { label: 'Google' | 'Apple'; reduceMotion: boolean; onPress: () => void }) {
   const isApple = label === 'Apple';
   return (
@@ -4257,8 +4367,11 @@ function FlowApp({
         <CoachChatSheet
           open={coachOpen}
           rituals={rituals}
+          pendingCheckinRituals={pendingCheckinRituals}
+          latestCheckins={checkins}
           reduceMotion={reduceMotion}
           onClose={() => setCoachOpen(false)}
+          onSubmitCheckin={submitCheckin}
           onAddRitual={(name, icon) => addRitual({ name, icon, paletteKey: iconOptionForEmoji(icon).key })}
         />
         <AddRitualSheet
@@ -4418,8 +4531,6 @@ function TodayScreen({
         themeOverride={themeOverride}
         onSelect={selectThemeOverride}
       />
-      <FloCheckinCard rituals={pendingCheckinRituals} latestCheckins={latestCheckins} onSubmit={onSubmitCheckin} />
-      {weeklyPatternCheckin ? <FloPatternRecap checkin={weeklyPatternCheckin} rituals={rituals} /> : null}
       <TodayRhythmTimeline rituals={rituals} now={now} />
       {false ? (
         <GradientCard style={styles.hero}>
@@ -4539,7 +4650,7 @@ function AdaptiveTodayHero({
       <Reanimated.View style={[StyleSheet.absoluteFill, fadeStyle]}>
         <LinearGradient colors={currentTheme.backdrop} style={StyleSheet.absoluteFill} />
       </Reanimated.View>
-      {isNight ? <NightStarField reduceMotion={reduceMotion} /> : null}
+      <HeroAmbientScene themeKey={currentTheme.key} reduceMotion={reduceMotion} />
       <View style={styles.heroContent}>
         <View style={styles.themeLabelRow}>
           <View style={[styles.themeDot, { backgroundColor: currentTheme.accent }]} />
@@ -4581,6 +4692,325 @@ function AdaptiveTodayHero({
       </View>
     </View>
   );
+}
+
+function HeroAmbientScene({ themeKey, reduceMotion }: { themeKey: HeroThemeKey; reduceMotion: boolean }) {
+  const sunTop = themeKey === 'morning' ? 86 : themeKey === 'afternoon' ? 54 : 136;
+  const sunSize = themeKey === 'afternoon' ? 112 : themeKey === 'evening' ? 98 : 94;
+  const showSun = themeKey !== 'night';
+  const isEvening = themeKey === 'evening';
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {themeKey === 'night' ? (
+        <>
+          <NightStarField reduceMotion={reduceMotion} />
+          <MoonDisc reduceMotion={reduceMotion} />
+          <ShootingLight reduceMotion={reduceMotion} delay={900} top={56} right={18} />
+          <ShootingLight reduceMotion={reduceMotion} delay={3600} top={126} right={-4} />
+        </>
+      ) : null}
+
+      {showSun ? (
+        <>
+          <SunRays themeKey={themeKey} size={isEvening ? 176 : themeKey === 'afternoon' ? 228 : 186} top={sunTop - 34} reduceMotion={reduceMotion} />
+          <SunDisc themeKey={themeKey} size={sunSize} top={sunTop} reduceMotion={reduceMotion} />
+        </>
+      ) : null}
+
+      {themeKey === 'morning' || themeKey === 'afternoon' ? (
+        <>
+          <View style={styles.ambientSkyGlow} />
+          {ambientClouds.map((cloud, index) => (
+            <AmbientCloud
+              key={cloud.id}
+              cloud={cloud}
+              reduceMotion={reduceMotion}
+              tint={themeKey === 'morning' ? '#FFF7E1' : '#FFFFFF'}
+              lowContrast={index === 2}
+            />
+          ))}
+          {themeKey === 'afternoon' ? <AfternoonGlints reduceMotion={reduceMotion} /> : null}
+        </>
+      ) : null}
+
+      {isEvening ? (
+        <>
+          <View style={styles.eveningHorizon} />
+          <DuskSparks reduceMotion={reduceMotion} />
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function SunDisc({
+  themeKey,
+  size,
+  top,
+  reduceMotion,
+}: {
+  themeKey: HeroThemeKey;
+  size: number;
+  top: number;
+  reduceMotion: boolean;
+}) {
+  const scale = useSharedValue(reduceMotion ? 1 : 0.92);
+  const translateY = useSharedValue(themeKey === 'morning' && !reduceMotion ? 40 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      scale.value = 1;
+      translateY.value = 0;
+      return;
+    }
+    translateY.value = withTiming(0, { duration: 1400, easing: ReanimatedEasing.out(ReanimatedEasing.cubic) });
+    scale.value = withRepeat(
+      withTiming(1.04, { duration: 2400, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }),
+      -1,
+      true,
+    );
+    return () => {
+      cancelAnimation(scale);
+      cancelAnimation(translateY);
+    };
+  }, [reduceMotion, scale, themeKey, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
+  const isEvening = themeKey === 'evening';
+  const colorsForTheme: [string, string] = isEvening
+    ? ['#FFD9A0', '#E8834D']
+    : themeKey === 'morning'
+      ? ['#FFE8B0', '#F2A93B']
+      : ['#FFFDF5', '#FFD24D'];
+
+  return (
+    <Reanimated.View
+      style={[
+        styles.ambientSunWrap,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          top,
+          marginLeft: -size / 2,
+          shadowColor: isEvening ? '#E8834D' : '#FFD24D',
+        },
+        animatedStyle,
+      ]}
+    >
+      <LinearGradient colors={colorsForTheme} start={{ x: 0.25, y: 0.15 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+    </Reanimated.View>
+  );
+}
+
+function SunRays({ themeKey, size, top, reduceMotion }: { themeKey: HeroThemeKey; size: number; top: number; reduceMotion: boolean }) {
+  const rotate = useSharedValue(0);
+  const count = themeKey === 'afternoon' ? 16 : 12;
+  const rayColor = themeKey === 'evening' ? 'rgba(255,217,160,0.32)' : themeKey === 'morning' ? 'rgba(255,235,190,0.54)' : 'rgba(255,255,255,0.62)';
+
+  useEffect(() => {
+    if (reduceMotion) {
+      rotate.value = 0;
+      return;
+    }
+    rotate.value = withRepeat(withTiming(360, { duration: themeKey === 'afternoon' ? 26000 : 38000, easing: ReanimatedEasing.linear }), -1, false);
+    return () => cancelAnimation(rotate);
+  }, [reduceMotion, rotate, themeKey]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotate.value}deg` }],
+  }));
+  const center = size / 2;
+  const inner = center - (themeKey === 'afternoon' ? 12 : 18);
+  const outer = center - 2;
+
+  return (
+    <Reanimated.View style={[styles.ambientRays, { width: size, height: size, top, marginLeft: -size / 2 }, animatedStyle]}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {Array.from({ length: count }).map((_, index) => (
+          <Line
+            key={`ray-${index}`}
+            x1={center}
+            y1={center - outer}
+            x2={center}
+            y2={center - inner}
+            stroke={rayColor}
+            strokeWidth={themeKey === 'afternoon' ? 3 : 2}
+            strokeLinecap="round"
+            transform={`rotate(${(360 / count) * index} ${center} ${center})`}
+          />
+        ))}
+      </Svg>
+    </Reanimated.View>
+  );
+}
+
+function AmbientCloud({
+  cloud,
+  reduceMotion,
+  tint,
+  lowContrast,
+}: {
+  cloud: { width: number; height: number; top: number; delay: number; duration: number; opacity: number };
+  reduceMotion: boolean;
+  tint: string;
+  lowContrast?: boolean;
+}) {
+  const translateX = useSharedValue(reduceMotion ? 20 : -110);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      translateX.value = 20;
+      return;
+    }
+    translateX.value = withDelay(cloud.delay, withRepeat(withTiming(430, { duration: cloud.duration, easing: ReanimatedEasing.linear }), -1, false));
+    return () => cancelAnimation(translateX);
+  }, [cloud.delay, cloud.duration, reduceMotion, translateX]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <Reanimated.View
+      style={[
+        styles.ambientCloud,
+        {
+          width: cloud.width,
+          height: cloud.height,
+          top: cloud.top,
+          opacity: lowContrast ? cloud.opacity * 0.74 : cloud.opacity,
+          backgroundColor: tint,
+          borderRadius: cloud.height,
+        },
+        animatedStyle,
+      ]}
+    >
+      <View style={[styles.ambientCloudPuff, { width: cloud.height * 1.2, height: cloud.height * 1.2, borderRadius: cloud.height, left: cloud.width * 0.16, top: -cloud.height * 0.42, backgroundColor: tint }]} />
+      <View style={[styles.ambientCloudPuff, { width: cloud.height * 1.45, height: cloud.height * 1.45, borderRadius: cloud.height, right: cloud.width * 0.18, top: -cloud.height * 0.64, backgroundColor: tint }]} />
+    </Reanimated.View>
+  );
+}
+
+function AfternoonGlints({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <>
+      <Glint reduceMotion={reduceMotion} top={58} left="16%" delay={200} />
+      <Glint reduceMotion={reduceMotion} top={76} left="78%" delay={900} />
+      <Glint reduceMotion={reduceMotion} top={182} left="83%" delay={1300} />
+    </>
+  );
+}
+
+function Glint({ reduceMotion, top, left, delay }: { reduceMotion: boolean; top: number; left: `${number}%`; delay: number }) {
+  const scale = useSharedValue(0.62);
+  const opacity = useSharedValue(0.22);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      scale.value = 1;
+      opacity.value = 0.56;
+      return;
+    }
+    scale.value = withDelay(delay, withRepeat(withTiming(1.24, { duration: 1700, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }), -1, true));
+    opacity.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1700, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }), -1, true));
+    return () => {
+      cancelAnimation(scale);
+      cancelAnimation(opacity);
+    };
+  }, [delay, opacity, reduceMotion, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  return <Reanimated.View style={[styles.ambientGlint, { top, left }, animatedStyle]} />;
+}
+
+function DuskSparks({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <>
+      {ambientSparks.map((spark) => (
+        <DuskSpark key={spark.id} spark={spark} reduceMotion={reduceMotion} />
+      ))}
+    </>
+  );
+}
+
+function DuskSpark({ spark, reduceMotion }: { spark: { left: `${number}%`; bottom: number; delay: number }; reduceMotion: boolean }) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      translateY.value = 0;
+      opacity.value = 0.46;
+      return;
+    }
+    translateY.value = withDelay(spark.delay, withRepeat(withTiming(-72, { duration: 4300, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }), -1, true));
+    opacity.value = withDelay(spark.delay, withRepeat(withTiming(0.92, { duration: 2100, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }), -1, true));
+    return () => {
+      cancelAnimation(translateY);
+      cancelAnimation(opacity);
+    };
+  }, [opacity, reduceMotion, spark.delay, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return <Reanimated.View style={[styles.duskSpark, { left: spark.left, bottom: spark.bottom }, animatedStyle]} />;
+}
+
+function MoonDisc({ reduceMotion }: { reduceMotion: boolean }) {
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      translateY.value = 0;
+      return;
+    }
+    translateY.value = withRepeat(withTiming(-8, { duration: 3600, easing: ReanimatedEasing.inOut(ReanimatedEasing.quad) }), -1, true);
+    return () => cancelAnimation(translateY);
+  }, [reduceMotion, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Reanimated.View style={[styles.ambientMoon, animatedStyle]}>
+      <LinearGradient colors={['#EFEDFF', '#A9A2E8']} start={{ x: 0.2, y: 0.1 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <View style={[styles.moonCrater, { width: 14, height: 14, top: 18, left: 16 }]} />
+      <View style={[styles.moonCrater, { width: 8, height: 8, top: 44, left: 52 }]} />
+      <View style={[styles.moonCrater, { width: 10, height: 10, top: 58, left: 24 }]} />
+    </Reanimated.View>
+  );
+}
+
+function ShootingLight({ reduceMotion, delay, top, right }: { reduceMotion: boolean; delay: number; top: number; right: number }) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      progress.value = 0;
+      return;
+    }
+    progress.value = withDelay(delay, withRepeat(withTiming(1, { duration: 4700, easing: ReanimatedEasing.linear }), -1, false));
+    return () => cancelAnimation(progress);
+  }, [delay, progress, reduceMotion]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.value < 0.05 || progress.value > 0.22 ? 0 : 1 - Math.abs(progress.value - 0.12) * 8,
+    transform: [{ translateX: progress.value * -150 }, { translateY: progress.value * 94 }, { rotate: '-32deg' }],
+  }));
+
+  return <Reanimated.View style={[styles.shootingLight, { top, right }, animatedStyle]} />;
 }
 
 function TodayThemeSwitcher({
@@ -5378,12 +5808,18 @@ function buildLocalCoachReply(message: string, rituals: Ritual[]): { text: strin
 
 function CoachScreen({
   rituals,
+  pendingCheckinRituals = [],
+  latestCheckins = [],
   reduceMotion,
+  onSubmitCheckin,
   onAddRitual,
   sheet = false,
 }: {
   rituals: Ritual[];
+  pendingCheckinRituals?: Ritual[];
+  latestCheckins?: RitualCheckin[];
   reduceMotion: boolean;
+  onSubmitCheckin?: (reason: string) => void | Promise<void>;
   onAddRitual: (name: string, icon: string) => void | Promise<void>;
   sheet?: boolean;
 }) {
@@ -5494,6 +5930,16 @@ function CoachScreen({
         showsVerticalScrollIndicator={false}
         style={styles.coachListFrame}
         contentContainerStyle={styles.coachList}
+        ListHeaderComponent={
+          onSubmitCheckin ? (
+            <>
+              <FloCheckinCard rituals={pendingCheckinRituals} latestCheckins={latestCheckins} onSubmit={onSubmitCheckin} />
+              {pendingCheckinRituals.length ? (
+                <Text style={styles.coachCheckinHint}>Flo will use your answer to protect the right streaks and suggest a smaller next action.</Text>
+              ) : null}
+            </>
+          ) : null
+        }
         renderItem={({ item }) => (
           <CoachBubble message={item} reduceMotion={reduceMotion} onConfirmAction={confirmAction} />
         )}
@@ -5695,11 +6141,17 @@ function ProfileScreen({
   const daysActive = rituals.reduce((sum, ritual) => sum + ritual.heat.filter(Boolean).length, 0);
   const now = useMinuteNow();
   const todayLabel = useMemo(() => formatTodayLabel(now), [now]);
+  const [activePolicy, setActivePolicy] = useState<PolicyKey | null>(null);
+  const openSupport = (subject: string) => {
+    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+    Linking.openURL(mailto).catch(() => undefined);
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
-      <ScreenHeader title="Profile" icon={Settings} />
-      <View style={styles.profileCard}>
+    <>
+      <ScrollView contentContainerStyle={styles.screenScroll} showsVerticalScrollIndicator={false}>
+        <ScreenHeader title="Profile" icon={Settings} />
+        <View style={styles.profileCard}>
         <View style={styles.profileAvatar}>
           <LogoMark size={52} reduceMotion={reduceMotion} style={styles.logoMarkInline} />
         </View>
@@ -5717,13 +6169,13 @@ function ProfileScreen({
           <Text numberOfLines={1} style={styles.profileStarted}>Started {todayLabel}</Text>
           {habitFocus ? <Text numberOfLines={1} style={styles.profileFocus}>Focus: {habitFocus}</Text> : null}
         </View>
-      </View>
+        </View>
 
-      <View style={styles.pstatGrid}>
-        <ProfileStat value={rituals.length} label="Total rituals" />
-        <ProfileStat value={best} label="Best streak" />
-        <ProfileStat value={daysActive} label="Days active" />
-      </View>
+        <View style={styles.pstatGrid}>
+          <ProfileStat value={rituals.length} label="Total rituals" />
+          <ProfileStat value={best} label="Best streak" />
+          <ProfileStat value={daysActive} label="Days active" />
+        </View>
 
       {profileIncomplete ? (
         <LinearGradient colors={habitPalette.food.bg} style={styles.profileSetupPrompt}>
@@ -5754,16 +6206,32 @@ function ProfileScreen({
         <ToneRow value={settings.floTone} onChange={(value) => onSettingChange('floTone', value)} />
       </View>
 
-      <View style={styles.settingsCard}>
-        <Text style={styles.settingsLabel}>Account</Text>
-        <Pressable accessibilityRole="button" onPress={onLogout} style={styles.settingRow}>
-          <View style={styles.settingIcon}>
-            <LogOut size={17} color={colors.danger} strokeWidth={2.3} />
-          </View>
-          <Text style={[styles.settingName, { color: colors.danger }]}>Sign out</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsLabel}>Legal & trust</Text>
+          <ActionRow icon={ShieldCheck} label="Privacy Policy" onPress={() => setActivePolicy('privacy')} />
+          <ActionRow icon={Check} label="Terms of Service" onPress={() => setActivePolicy('terms')} />
+          <ActionRow icon={Lock} label="Security Policy" onPress={() => setActivePolicy('security')} />
+          <ActionRow icon={User} label="Accessibility Statement" onPress={() => setActivePolicy('accessibility')} />
+        </View>
+
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsLabel}>Support</Text>
+          <ActionRow icon={MessageCircle} label="Contact support" value={SUPPORT_EMAIL} onPress={() => openSupport('Rituals support request')} />
+          <ActionRow icon={Pencil} label="Report a bug" value="Send details" onPress={() => openSupport('Rituals bug report')} />
+        </View>
+
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsLabel}>Account</Text>
+          <Pressable accessibilityRole="button" onPress={onLogout} style={styles.settingRow}>
+            <View style={styles.settingIcon}>
+              <LogOut size={17} color={colors.danger} strokeWidth={2.3} />
+            </View>
+            <Text style={[styles.settingName, { color: colors.danger }]}>Sign out</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+      <PolicyModal policy={activePolicy} onClose={() => setActivePolicy(null)} />
+    </>
   );
 }
 
@@ -6283,6 +6751,28 @@ function InfoRow({
   );
 }
 
+function ActionRow({
+  icon: Icon,
+  label,
+  value,
+  onPress,
+}: {
+  icon: IconComponent;
+  label: string;
+  value?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.settingRow}>
+      <View style={styles.settingIcon}>
+        <Icon size={17} color={colors.ink} strokeWidth={2.3} />
+      </View>
+      <Text style={styles.settingName}>{label}</Text>
+      {value ? <Text numberOfLines={1} style={styles.settingSub}>{value}</Text> : null}
+    </Pressable>
+  );
+}
+
 function Toggle({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
   const x = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -6474,14 +6964,20 @@ function AskFloLauncher({
 function CoachChatSheet({
   open,
   rituals,
+  pendingCheckinRituals,
+  latestCheckins,
   reduceMotion,
   onClose,
+  onSubmitCheckin,
   onAddRitual,
 }: {
   open: boolean;
   rituals: Ritual[];
+  pendingCheckinRituals: Ritual[];
+  latestCheckins: RitualCheckin[];
   reduceMotion: boolean;
   onClose: () => void;
+  onSubmitCheckin: (reason: string) => void | Promise<void>;
   onAddRitual: (name: string, icon: string) => void | Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
@@ -6512,7 +7008,15 @@ function CoachChatSheet({
             ]}
           >
             <View style={styles.modalHandle} />
-            <CoachScreen rituals={rituals} reduceMotion={reduceMotion} onAddRitual={onAddRitual} sheet />
+            <CoachScreen
+              rituals={rituals}
+              pendingCheckinRituals={pendingCheckinRituals}
+              latestCheckins={latestCheckins}
+              reduceMotion={reduceMotion}
+              onSubmitCheckin={onSubmitCheckin}
+              onAddRitual={onAddRitual}
+              sheet
+            />
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -6537,8 +7041,9 @@ function BottomNav({
   const mounted = useRef(new Animated.Value(0)).current;
   const indicator = useRef(new Animated.Value(activeIndex)).current;
   const itemWidth = width < 380 ? 44 : 48;
-  const gap = width < 380 ? 14 : 18;
-  const padX = width < 380 ? 18 : 22;
+  const knobSize = width < 380 ? 60 : 64;
+  const gap = width < 380 ? 14 : 16;
+  const padX = width < 380 ? 8 : 10;
   const step = itemWidth + gap;
   const navWidth = itemWidth * 5 + gap * 4 + padX * 2;
   const navSideOffset = width >= TABLET_MIN_WIDTH
@@ -6586,11 +7091,20 @@ function BottomNav({
               style={[
                 styles.glassNavIndicator,
                 {
-                  width: itemWidth,
-                  transform: [{ translateX: indicator.interpolate({ inputRange: [0, 4], outputRange: [0, step * 4] }) }],
+                  width: knobSize,
+                  height: knobSize,
+                  transform: [{ translateX: indicator.interpolate({ inputRange: [0, 4], outputRange: [itemWidth / 2 - knobSize / 2, step * 4 + itemWidth / 2 - knobSize / 2] }) }],
                 },
               ]}
-            />
+            >
+              <LinearGradient
+                colors={navGlassColors.knobGradient}
+                locations={[0, 0.46, 1]}
+                start={{ x: 0.2, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
             <NavItem tab="today" label="Home" icon={Home} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
             <NavItem tab="progress" label="Progress" icon={Clock3} itemWidth={itemWidth} activeTab={activeTab} onChange={onChange} />
             <Pressable accessibilityRole="button" accessibilityLabel="Add ritual" onPress={onAdd} style={[styles.glassNavItem, { width: itemWidth }]}>
@@ -7726,6 +8240,73 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.blue1,
   },
+  policyModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  policyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(20,30,50,0.38)',
+  },
+  policySheet: {
+    maxHeight: '78%',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    shadowColor: '#1E325A',
+    shadowOffset: { width: 0, height: -18 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    elevation: 24,
+  },
+  policyHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  policyTitle: {
+    fontFamily: fontSerif,
+    fontSize: 21,
+    color: colors.ink,
+  },
+  policyUpdated: {
+    fontFamily: fontBodyRegular,
+    fontSize: 11.5,
+    color: colors.inkSoft,
+    marginTop: 3,
+  },
+  policyClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F3F6FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  policyCloseText: {
+    fontFamily: fontBodyExtra,
+    fontSize: 16,
+    color: colors.ink,
+    lineHeight: 18,
+  },
+  policyBody: {
+    paddingTop: 14,
+    paddingBottom: 10,
+    gap: 12,
+  },
+  policyParagraph: {
+    fontFamily: fontBodyRegular,
+    fontSize: 13.5,
+    lineHeight: 21,
+    color: colors.ink,
+  },
   onboardingScroll: {
     flexGrow: 1,
     alignSelf: 'center',
@@ -8198,6 +8779,15 @@ const styles = StyleSheet.create({
     gap: 12,
     flexGrow: 1,
   },
+  coachCheckinHint: {
+    fontFamily: fontBodyBold,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: colors.inkSoft,
+    marginTop: -2,
+    marginBottom: 2,
+    paddingHorizontal: 10,
+  },
   coachListFrame: {
     flex: 1,
     minHeight: 0,
@@ -8492,16 +9082,19 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   heroAdaptive: {
-    minHeight: 300,
+    minHeight: 388,
     borderRadius: 32,
-    paddingTop: 18,
+    paddingTop: 20,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 22,
     marginBottom: 0,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: 'rgba(255,255,255,0.58)',
     ...shadow,
+    shadowOpacity: 0.14,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 18 },
   },
   heroAdaptiveComplete: {
     shadowColor: colors.green,
@@ -8513,6 +9106,100 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 1,
     alignItems: 'center',
+  },
+  ambientSkyGlow: {
+    position: 'absolute',
+    left: -40,
+    right: -40,
+    top: '34%',
+    height: '64%',
+    borderTopLeftRadius: 220,
+    borderTopRightRadius: 220,
+    backgroundColor: 'rgba(255,247,225,0.22)',
+  },
+  ambientSunWrap: {
+    position: 'absolute',
+    left: '50%',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 32,
+    elevation: 8,
+  },
+  ambientRays: {
+    position: 'absolute',
+    left: '50%',
+    opacity: 0.88,
+  },
+  ambientCloud: {
+    position: 'absolute',
+    left: -120,
+  },
+  ambientCloudPuff: {
+    position: 'absolute',
+  },
+  ambientGlint: {
+    position: 'absolute',
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  eveningHorizon: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '42%',
+    backgroundColor: 'rgba(108,87,184,0.34)',
+  },
+  duskSpark: {
+    position: 'absolute',
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#FFEFB0',
+    shadowColor: '#FFEFB0',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.82,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  ambientMoon: {
+    position: 'absolute',
+    left: '50%',
+    top: 78,
+    width: 92,
+    height: 92,
+    marginLeft: -46,
+    borderRadius: 46,
+    overflow: 'hidden',
+    shadowColor: '#968CE6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    elevation: 8,
+  },
+  moonCrater: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(140,130,200,0.4)',
+  },
+  shootingLight: {
+    position: 'absolute',
+    width: 64,
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 7,
   },
   heroCompleteOrb: {
     transform: [{ scale: 1.04 }],
@@ -9861,33 +10548,33 @@ const styles = StyleSheet.create({
     elevation: 18,
   },
   glassNavRim: {
-    borderRadius: 32,
+    borderRadius: 999,
     overflow: 'hidden',
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.78)',
+    borderColor: navGlassColors.border,
     ...Platform.select({
-      android: { elevation: 10 },
+      android: { elevation: 8 },
       ios: {
-        shadowColor: 'rgba(60,60,67,0.18)',
-        shadowOffset: { width: 0, height: 4 },
+        shadowColor: 'rgba(0,0,0,0.12)',
+        shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 1,
-        shadowRadius: 12,
+        shadowRadius: 26,
       },
     }),
   },
   glassNavBlur: {
-    borderRadius: 32,
+    borderRadius: 999,
     overflow: 'hidden',
     backgroundColor: 'transparent',
   },
   glassNavPill: {
-    minHeight: 72,
-    borderRadius: 32,
+    height: 76,
+    borderRadius: 999,
     backgroundColor: navGlassColors.pillBase,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: navGlassColors.border,
-    paddingVertical: 10,
+    paddingVertical: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -9900,15 +10587,20 @@ const styles = StyleSheet.create({
   glassNavIndicator: {
     position: 'absolute',
     left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: 16,
-    backgroundColor: 'rgba(79,168,255,0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(79,168,255,0.36)',
+    top: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: navGlassColors.knobBorder,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.46)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 9,
   },
   glassNavItem: {
-    height: 52,
+    height: 76,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -9923,17 +10615,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#4FA8FF',
+    borderColor: navGlassColors.knobBorder,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.55,
+    shadowOpacity: 0.12,
     shadowRadius: 10,
   },
   glassNavLabel: {
     fontFamily: fontBodyRegular,
     fontSize: 10.5,
     lineHeight: 11,
-    color: '#4B5D78',
+    color: navGlassColors.inactiveIcon,
   },
   glassNavLabelActive: {
     fontFamily: fontBodyBold,
